@@ -5,22 +5,15 @@ import type { Database } from './types';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
+// DIAGNOSTIC ERROR THROW: Force the error to the ErrorBoundary
 if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
-  console.error(
-    "Faltan variables de entorno cruciales: VITE_SUPABASE_URL o VITE_SUPABASE_PUBLISHABLE_KEY. " +
-    "El sistema no puede arrancar. Verifica tu configuración en Vercel/Netlify o tu arquivo .env local."
-  );
+  throw new Error("ERROR DE CONFIGURACIÓN: (VITE_SUPABASE_URL) o (VITE_SUPABASE_PUBLISHABLE_KEY) no están definidos en Vercel. Por favor, revisa tus Variables de Entorno.");
 }
 
-const url = SUPABASE_URL || "https://placeholder-project.supabase.co";
-const key = SUPABASE_PUBLISHABLE_KEY || "placeholder-key";
-
-export const supabase = createClient<Database>(url, key, {
+export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
     storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
   }
 });
-
-// Forcing clean redeploy
