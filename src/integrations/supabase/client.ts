@@ -6,16 +6,19 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
 if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
-  throw new Error(
+  console.error(
     "Faltan variables de entorno cruciales: VITE_SUPABASE_URL o VITE_SUPABASE_PUBLISHABLE_KEY. " +
     "El sistema no puede arrancar. Verifica tu configuración en Vercel/Netlify o tu archivo .env local."
   );
 }
 
+const url = SUPABASE_URL || "https://placeholder-url-para-evitar-crash.supabase.co";
+const key = SUPABASE_PUBLISHABLE_KEY || "placeholder-key";
+
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+export const supabase = createClient<Database>(url, key, {
   auth: {
     storage: localStorage,
     persistSession: true,
