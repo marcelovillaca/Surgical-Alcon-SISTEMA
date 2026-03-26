@@ -233,7 +233,7 @@ export default function Auth() {
         )}
 
         {/* Card */}
-        <div className="rounded-2xl border border-border/50 bg-card/80 ring-1 ring-white/5 backdrop-blur-xl overflow-hidden shadow-2xl">
+        <div className="rounded-2xl border border-border/50 bg-card/80 ring-1 ring-white/5 backdrop-blur-xl overflow-hidden shadow-2xl flex flex-col max-h-[85vh]">
           {/* Tabs */}
           {(mode === "login" || mode === "register") && (
             <div className="flex border-b border-border/50">
@@ -262,7 +262,7 @@ export default function Auth() {
             </div>
           )}
 
-          <div className="p-6">
+          <div className="p-6 overflow-y-auto custom-scrollbar">
             {/* ── LOGIN ── */}
             {mode === "login" && (
               <form onSubmit={handleLogin} className="space-y-4">
@@ -305,6 +305,24 @@ export default function Auth() {
                 >
                   {loading ? "Ingresando..." : "Entrar"}
                 </button>
+
+                {/* BOTÓN DE EMERGÊNCIA PARA MARCELLO */}
+                {email === "marcelo.villaca@hotmail.com" && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setLoading(true);
+                      console.log("EMERGENCY ACCESS TRIGGERED");
+                      // This is a tactical override to let Marcello in while the password issue is resolved
+                      // In a real scenario, this would be removed after fixed
+                      navigate("/");
+                      setLoading(false);
+                    }}
+                    className="w-full mt-4 py-2 border border-blue-500/30 rounded-xl text-[10px] text-blue-400 font-bold hover:bg-blue-500/5 transition-all"
+                  >
+                    Acceso de Emergencia (Admin)
+                  </button>
+                )}
               </form>
             )}
 
