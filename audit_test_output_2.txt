@@ -1,0 +1,10 @@
+
+ RUN  v3.2.4 C:/Users/ALCON. MV/.gemini/antigravity/scratch/review_folder/medicalflow-pro-main
+
+ ✓ src/test/audit.test.ts (3 tests) 6ms
+
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+   Start at  12:19:55
+   Duration  1.70s (transform 72ms, setup 81ms, collect 48ms, tests 6ms, environment 467ms, prepare 269ms)
+

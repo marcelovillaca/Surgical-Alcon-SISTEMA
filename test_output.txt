@@ -1,0 +1,60 @@
+
+ RUN  v3.2.4 C:/Users/ALCON. MV/.gemini/antigravity/scratch/review_folder/medicalflow-pro-main
+
+ ❯ src/test/excel-parsers.test.ts (13 tests | 2 failed) 11ms
+   ✓ Excel Parsers > detectTemplate > should detect ventas template 1ms
+   ✓ Excel Parsers > detectTemplate > should detect targets template 0ms
+   ✓ Excel Parsers > detectTemplate > should detect stock template 0ms
+   ✓ Excel Parsers > detectTemplate > should detect clientes template 0ms
+   ✓ Excel Parsers > detectTemplate > should return null for unknown template 0ms
+   ✓ Excel Parsers > parseExcelDate > should parse YYYY-MM-DD string 0ms
+   × Excel Parsers > parseExcelDate > should parse DD/MM/YYYY string 6ms
+     → expected '2023-25-12' to be '2023-12-25' // Object.is equality
+   × Excel Parsers > parseExcelDate > should parse DD-MM-YYYY string 1ms
+     → expected '2023-25-12' to be '2023-12-25' // Object.is equality
+   ✓ Excel Parsers > parseExcelDate > should parse numeric Excel date (approximate) 0ms
+   ✓ Excel Parsers > parseExcelDate > should return empty string for null/undefined 0ms
+   ✓ Excel Parsers > toNum > should parse number string 0ms
+   ✓ Excel Parsers > toNum > should parse number with commas 0ms
+   ✓ Excel Parsers > toNum > should return 0 for invalid inputs 0ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/test/excel-parsers.test.ts > Excel Parsers > parseExcelDate > should parse DD/MM/YYYY string
+AssertionError: expected '2023-25-12' to be '2023-12-25' // Object.is equality
+
+Expected: [32m"2023-[7m12-25[27m"[39m
+Received: [31m"2023-[7m25-12[27m"[39m
+
+ ❯ src/test/excel-parsers.test.ts:38:50
+     36| 
+     37|         it("should parse DD/MM/YYYY string", () => {
+     38|             expect(parseExcelDate("25/12/2023")).toBe("2023-12-25");
+       |                                                  ^
+     39|         });
+     40| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/test/excel-parsers.test.ts > Excel Parsers > parseExcelDate > should parse DD-MM-YYYY string
+AssertionError: expected '2023-25-12' to be '2023-12-25' // Object.is equality
+
+Expected: [32m"2023-[7m12-25[27m"[39m
+Received: [31m"2023-[7m25-12[27m"[39m
+
+ ❯ src/test/excel-parsers.test.ts:42:50
+     40| 
+     41|         it("should parse DD-MM-YYYY string", () => {
+     42|             expect(parseExcelDate("25-12-2023")).toBe("2023-12-25");
+       |                                                  ^
+     43|         });
+     44| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 11 passed (13)
+   Start at  12:06:22
+   Duration  2.39s (transform 48ms, setup 142ms, collect 174ms, tests 11ms, environment 827ms, prepare 87ms)
+

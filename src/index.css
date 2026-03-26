@@ -1,0 +1,129 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap');
+
+@layer base {
+  :root {
+    --background: 0 0% 7%;
+    --foreground: 0 0% 95%;
+
+    --card: 0 0% 12%;
+    --card-foreground: 0 0% 95%;
+
+    --popover: 0 0% 10%;
+    --popover-foreground: 0 0% 95%;
+
+    --primary: 45 90% 55%;
+    --primary-foreground: 0 0% 5%;
+
+    --secondary: 197 100% 44%;
+    --secondary-foreground: 0 0% 98%;
+
+    --muted: 0 0% 16%;
+    --muted-foreground: 0 0% 55%;
+
+    --accent: 197 100% 44%;
+    --accent-foreground: 0 0% 98%;
+
+    --destructive: 0 72% 50%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 0 0% 18%;
+    --input: 0 0% 18%;
+    --ring: 45 90% 55%;
+
+    --radius: 0.625rem;
+
+    --sidebar-background: 0 0% 9%;
+    --sidebar-foreground: 0 0% 70%;
+    --sidebar-primary: 45 90% 55%;
+    --sidebar-primary-foreground: 0 0% 5%;
+    --sidebar-accent: 0 0% 14%;
+    --sidebar-accent-foreground: 0 0% 90%;
+    --sidebar-border: 0 0% 15%;
+    --sidebar-ring: 45 90% 55%;
+
+    /* Custom tokens */
+    --gold: 45 90% 55%;
+    --gold-dim: 45 60% 40%;
+    --alcon-blue: 197 100% 44%;
+    --alcon-blue-dim: 197 70% 32%;
+    --emerald: 160 60% 38%;
+    --emerald-dim: 160 40% 28%;
+    --surface-elevated: 0 0% 14%;
+    --chart-1: 45 90% 55%;
+    --chart-2: 197 100% 44%;
+    --chart-3: 200 70% 50%;
+    --chart-4: 280 60% 55%;
+    --chart-5: 20 80% 55%;
+
+    /* UI-UX-PRO-MAX Spacing & Shadows */
+    --space-xs: 0.25rem;
+    --space-sm: 0.5rem;
+    --space-md: 1rem;
+    --space-lg: 1.5rem;
+    --space-xl: 2rem;
+    --space-2xl: 3rem;
+    --space-3xl: 4rem;
+
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+    --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+    --shadow-xl: 0 20px 25px -5px rgba(0,0,0,0.15), 0 10px 10px -5px rgba(0,0,0,0.04);
+
+    --transition: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Fira Sans', 'Inter', system-ui, sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Fira Code', 'Space Grotesk', system-ui, sans-serif;
+    @apply font-semibold tracking-tight;
+  }
+}
+
+@layer utilities {
+  .gold-glow {
+    box-shadow: 0 0 20px hsl(45 90% 55% / 0.15), 0 0 60px hsl(45 90% 55% / 0.05);
+  }
+
+  .emerald-glow {
+    box-shadow: 0 0 20px hsl(197 100% 44% / 0.15), 0 0 60px hsl(197 100% 44% / 0.05);
+  }
+
+  .card-hover {
+    @apply transition-all duration-300 hover:border-primary/30;
+  }
+
+  .glass-surface {
+    background: hsl(0 0% 12% / 0.8);
+    backdrop-filter: blur(12px);
+  }
+
+  .gradient-gold {
+    background: linear-gradient(135deg, hsl(45 90% 55%), hsl(35 85% 45%));
+  }
+
+  .gradient-emerald {
+    background: linear-gradient(135deg, hsl(197 100% 44%), hsl(207 80% 35%));
+  }
+
+  .text-gold {
+    color: hsl(45 90% 55%);
+  }
+
+  .text-emerald {
+    color: hsl(197 100% 44%);
+  }
+}

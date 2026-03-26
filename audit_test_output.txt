@@ -1,0 +1,26 @@
+
+ RUN  v3.2.4 C:/Users/ALCON. MV/.gemini/antigravity/scratch/review_folder/medicalflow-pro-main
+
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/test/audit.test.ts [ src/test/audit.test.ts ]
+Error: [vitest] There was an error when mocking a module. If you are using "vi.mock" factory, make sure there are no top level variables inside, since this call is hoisted to top of the file. Read more: https://vitest.dev/api/vi.html#vi-mock
+ ❯ src/hooks/useAudit.ts:1:1
+      1| import { supabase } from "@/integrations/supabase/client";
+       | ^
+      2| 
+      3| export type AuditAction = "LOGIN" | "LOGOUT" | "IMPORT_DATA" | "CREATE…
+
+Caused by: ReferenceError: Cannot access 'mockFrom' before initialization
+ ❯ src/test/audit.test.ts:10:15
+ ❯ src/hooks/useAudit.ts:1:1
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  no tests
+   Start at  12:18:23
+   Duration  1.72s (transform 102ms, setup 221ms, collect 0ms, tests 0ms, environment 753ms, prepare 200ms)
+

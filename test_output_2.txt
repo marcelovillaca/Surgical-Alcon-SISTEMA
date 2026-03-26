@@ -1,0 +1,10 @@
+
+ RUN  v3.2.4 C:/Users/ALCON. MV/.gemini/antigravity/scratch/review_folder/medicalflow-pro-main
+
+ ✓ src/test/excel-parsers.test.ts (13 tests) 9ms
+
+ Test Files  1 passed (1)
+      Tests  13 passed (13)
+   Start at  12:07:02
+   Duration  1.79s (transform 53ms, setup 165ms, collect 193ms, tests 9ms, environment 782ms, prepare 126ms)
+
