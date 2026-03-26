@@ -214,11 +214,11 @@ export default function Auth() {
 
         {/* Logo */}
         <div className="text-center">
-          <div className="mx-auto h-14 w-14 rounded-xl gradient-emerald flex items-center justify-center mb-4 shadow-xl shadow-emerald-500/20">
-            <span className="text-xl font-bold text-secondary-foreground">A</span>
+          <div className="mx-auto h-20 w-20 mb-4 animate-fade-in">
+            <img src="/logo.png" alt="Surgical Logo" className="w-full h-full object-contain" />
           </div>
-          <h1 className="text-2xl font-display font-bold text-foreground">Surgical Alcon</h1>
-          <p className="text-sm text-muted-foreground mt-1">Sistema de Gestión Integrada</p>
+          <h1 className="text-2xl font-display font-bold text-foreground">Surgical Portal</h1>
+          <p className="text-sm text-muted-foreground mt-1">Gestión Quirúrgica Alcon</p>
         </div>
 
         {/* Alerta de usuário bloqueado */}
@@ -301,7 +301,7 @@ export default function Auth() {
                 {message && <div className="text-xs text-emerald-400 bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-3">{message}</div>}
                 <button
                   type="submit" disabled={loading}
-                  className="w-full rounded-xl gradient-emerald py-3 text-sm font-bold text-secondary-foreground transition-all hover:opacity-90 disabled:opacity-50 mt-2 shadow-lg shadow-emerald-500/20"
+                  className="w-full rounded-xl bg-blue-600 hover:bg-blue-500 py-3 text-sm font-bold text-white transition-all hover:opacity-90 disabled:opacity-50 mt-2 shadow-lg shadow-blue-500/10"
                 >
                   {loading ? "Ingresando..." : "Entrar"}
                 </button>

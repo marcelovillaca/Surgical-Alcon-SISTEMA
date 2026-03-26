@@ -176,18 +176,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="flex h-16 items-center justify-between border-b border-border px-4">
           {!collapsed && (
             <div className="flex items-center gap-2 animate-slide-in">
-              <div className="h-8 w-8 rounded-lg gradient-emerald flex items-center justify-center">
-                <span className="text-sm font-bold text-secondary-foreground">A</span>
+              <div className="h-8 w-8 flex items-center justify-center">
+                <img src="/logo.png" alt="S" className="w-full h-full object-contain" />
               </div>
               <div>
-                <h1 className="text-sm font-display font-bold text-foreground">Alcon</h1>
-                <p className="text-[10px] text-muted-foreground">SURGICAL <span className="bg-muted rounded px-1 py-0.5 text-[8px]">v1.0</span></p>
+                <h1 className="text-sm font-display font-bold text-foreground">Surgical</h1>
+                <p className="text-[10px] text-muted-foreground">PORTAL <span className="bg-muted rounded px-1 py-0.5 text-[8px]">v1.0</span></p>
               </div>
             </div>
           )}
           {collapsed && (
-            <div className="mx-auto h-8 w-8 rounded-lg gradient-emerald flex items-center justify-center">
-              <span className="text-sm font-bold text-secondary-foreground">A</span>
+            <div className="mx-auto h-8 w-8 flex items-center justify-center">
+              <img src="/logo.png" alt="S" className="w-full h-full object-contain" />
             </div>
           )}
         </div>
@@ -313,10 +313,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <p className="text-sm font-medium text-foreground">{user?.user_metadata?.full_name || "Usuario"}</p>
               <p className="text-xs text-muted-foreground">{role ? roleLabels[role] || role : ""} · {user?.email}</p>
             </div>
-            <div className="h-9 w-9 rounded-full gradient-emerald flex items-center justify-center">
-              <span className="text-xs font-bold text-secondary-foreground">
-                {user?.user_metadata?.full_name?.[0]?.toUpperCase() || "U"}
-              </span>
+            <div className="h-9 w-9 flex items-center justify-center">
+              <img src="/logo.png" alt="S" className="w-full h-full object-contain" />
             </div>
           </div>
         </header>
