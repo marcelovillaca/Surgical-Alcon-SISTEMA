@@ -1,43 +1,33 @@
 import { createRoot } from "react-dom/client";
-import App from "./App.tsx";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import "./index.css";
+// 🚨 EMERGENCY: ONLY IMPORTING ESSENTIAL STUFF 🚨
+import React, { Suspense, lazy } from "react";
 
-// 🚨 EMERGENCY DIAGNOSTIC 🚨
-// This will write to the screen BEFORE React even tries to load
-// If you see this message, the files are being served correctly!
+const App = lazy(() => import("./App.tsx"));
+
+// DIAGNOSTIC BAR
 const diag = document.createElement('div');
-diag.style.position = 'fixed';
-diag.style.top = '0';
-diag.style.left = '0';
-diag.style.background = 'red';
-diag.style.color = 'white';
-diag.style.padding = '5px';
-diag.style.fontSize = '10px';
-diag.style.zIndex = '9999';
-diag.innerText = 'Surgical Alcon Booting...';
+diag.style.cssText = "position:fixed;top:0;left:0;background:red;color:white;padding:4px;font-size:10px;z-index:99999;font-family:sans-serif";
+diag.innerText = 'JS_LOADED (Waiting for React...)';
 document.body.appendChild(diag);
 
-console.log("BOOT: Initializing application...");
+console.log("CRITICAL: JS MAIN LOADED");
 
 try {
   const rootElement = document.getElementById("root");
-  if (!rootElement) {
-    throw new Error("CRITICAL: Root element #root not found in index.html!");
+  if (rootElement) {
+    createRoot(rootElement).render(
+      <ErrorBoundary>
+        <Suspense fallback={<div style={{color:'white', textAlign:'center', marginTop:'40vh'}}>Iniciando Componentes UI...</div>}>
+          <App />
+        </Suspense>
+      </ErrorBoundary>
+    );
+    diag.style.background = 'green';
+    diag.innerText = 'REACT_MOUNTED';
   }
-
-  createRoot(rootElement).render(
-    <ErrorBoundary>
-      <App />
-    </ErrorBoundary>
-  );
-  
-  // If we reach here, tell the user it started
-  diag.style.background = 'green';
-  diag.innerText = 'Surgical Alcon Ready';
-  setTimeout(() => diag.remove(), 2000);
 } catch (e: any) {
-  diag.style.background = 'orange';
-  diag.innerText = 'BOOT ERROR: ' + e.message;
-  console.error("BOOT ERROR:", e);
+  diag.style.background = 'black';
+  diag.innerText = 'FATAL: ' + e.message;
 }
