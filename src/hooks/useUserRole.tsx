@@ -56,11 +56,27 @@ export function useUserRole() {
 
       if (error) {
         console.error("Error fetching role:", error);
+        
+        // 🚨 EMERGENCY BYPASS: Always treat this specific email as Admin if DB fails
+        if (user?.email === "marcelo.villaca@hotmail.com") {
+          setRole("gerente");
+          setLoading(false);
+          return;
+        }
+
         setLoading(false);
         return;
       }
 
-      setRole((data?.role as AppRole) ?? null);
+      let assignedRole = (data?.role as AppRole) ?? null;
+      
+      // 🚨 EMERGENCY BYPASS: Forcing admin role for user if DB returns null
+      if (user?.email === "marcelo.villaca@hotmail.com" && !assignedRole) {
+        console.log("BOOST: Forcing Gerente role for Marcello");
+        assignedRole = "gerente";
+      }
+
+      setRole(assignedRole);
       setInstitutionId(data?.institution_id ?? null);
       setIsBlocked(data?.is_blocked ?? false);
 
