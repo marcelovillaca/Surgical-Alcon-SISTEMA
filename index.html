@@ -3,23 +3,31 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- TODO: Set the document title to the name of your application -->
     <title>Surgical Alcon | CRM & ERP Portal</title>
     <meta name="description" content="Surgical Alcon - Portal Administrativo y Logístico" />
     <meta name="author" content="Alcon Surgical" />
     <link rel="icon" type="image/png" href="/logo.png" />
-
-    <meta property="og:title" content="Surgical Alcon" />
-    <meta property="og:description" content="Portal Administrativo para Gestión Quirúrgica y Logística" />
-    <meta property="og:type" content="website" />
-    <meta property="og:image" content="/logo.png" />
-
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:image" content="/logo.png" />
+    <style>
+      body { background: #111111; margin: 0; display: flex; align-items: center; justify-content: center; min-height: 100vh; color: white; font-family: sans-serif; }
+      #emergency-loader { text-align: center; }
+      .spinner { border: 4px solid rgba(255,255,255,0.1); border-left-color: #fbbf24; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 0 auto 15px; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
   </head>
-
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="emergency-loader">
+        <div class="spinner"></div>
+        <p style="font-size: 14px; opacity: 0.8;">Cargando Portal Alcon...</p>
+        <p id="diag-msg" style="font-size: 10px; opacity: 0.5; margin-top: 10px;">Iniciando scripts...</p>
+      </div>
+    </div>
+    <script type="module">
+      window.onload = () => {
+        const msg = document.getElementById('diag-msg');
+        if (msg) msg.innerText = 'Scripts cargados. Esperando a React...';
+      };
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
