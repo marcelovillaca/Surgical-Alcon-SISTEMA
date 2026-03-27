@@ -297,7 +297,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Main content */}
       <main
         className={cn(
-          "flex-1 transition-all duration-300",
+          "flex-1 transition-all duration-300 flex flex-col h-screen",
           collapsed ? "ml-[68px]" : "ml-[260px]"
         )}
       >
@@ -320,7 +320,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </header>
 
         {/* Page content */}
-        <div className="p-6">{children}</div>
+        <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-blue-500/20">{children}</div>
       </main>
     </div>
   );
