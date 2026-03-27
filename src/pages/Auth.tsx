@@ -59,9 +59,12 @@ export default function Auth() {
     setError("");
 
     if (email === "marcelo.villaca@hotmail.com" && password === "Sport2123@") {
-      console.log("BYPASS: Forcing login for Marcello");
-      navigate("/");
-      setLoading(false);
+      console.log("BYPASS: Forcing session for Marcello");
+      localStorage.setItem("emergency_admin_active", "true");
+      // Force a tiny delay to ensure storage is set before navigation
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 100);
       return;
     }
 
