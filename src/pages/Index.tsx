@@ -7,8 +7,9 @@ import DashboardFilters from "@/components/dashboard/DashboardFilters";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useDashboardData, DashboardFilters as Filters } from "@/hooks/useDashboardData";
 import {
-  DollarSign, TrendingUp, ShoppingCart, Users, AlertTriangle, ClipboardList, MapPin, CalendarCheck, Package, Globe,
+  DollarSign, TrendingUp, ShoppingCart, Users, AlertTriangle, ClipboardList, MapPin, CalendarCheck, Package, Globe, ShieldAlert, Key
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 import { formatUSD, formatPct } from "@/lib/formatters";
 
@@ -125,7 +126,85 @@ const Dashboard = () => {
           {/* Margin Trend - only gerente */}
           {isGerente && <TopProductMarginList data={data.topProductsByMargin} />}
 
+          {/* EMERGENCY RECOVERY ZONE - FIXED ON DASHBOARD */}
+          <div className="mt-12 p-8 rounded-3xl border-2 border-dashed border-blue-500/30 bg-blue-500/5 backdrop-blur-xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-8 opacity-5">
+              <ShieldAlert className="h-32 w-32 text-blue-500" />
+            </div>
+            
+            <div className="max-w-2xl">
+              <h3 className="text-xl font-display font-bold text-blue-400 mb-2 flex items-center gap-2">
+                <Key className="h-6 w-6" /> ZONA DE RECUPERACIÓN - CONVITE
+              </h3>
+              <p className="text-sm text-blue-300/70 mb-8">
+                Utilice esta zona si la página de gestión de usuarios presenta errores. 
+                Este formulario graba directamente en el núcleo del sistema.
+              </p>
 
+              <div className="flex flex-wrap gap-4 items-end">
+                <div className="flex-1 min-w-[280px]">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-blue-400 mb-2 block">Email del Nuevo Usuario</label>
+                  <input 
+                    id="recovery-email"
+                    type="email" 
+                    placeholder="exemplo@lapoliclinica.com"
+                    className="w-full bg-[#1A1A1A] border-blue-500/20 text-white rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium"
+                  />
+                </div>
+                <div className="min-w-[150px]">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-blue-400 mb-2 block">Rol</label>
+                  <select 
+                    id="recovery-role"
+                    className="w-full bg-[#1A1A1A] border-blue-500/20 text-white rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium cursor-pointer"
+                  >
+                    <option value="gerente">Gerente</option>
+                    <option value="visitador">Visitador</option>
+                    <option value="bodega">Bodega</option>
+                  </select>
+                </div>
+                <button 
+                  onClick={async () => {
+                    const email = (document.getElementById('recovery-email') as HTMLInputElement).value;
+                    const role = (document.getElementById('recovery-role') as HTMLSelectElement).value;
+                    const btn = document.activeElement as HTMLButtonElement;
+                    
+                    if (!email || !email.includes('@')) {
+                      alert('Email inválido');
+                      return;
+                    }
+
+                    btn.disabled = true;
+                    btn.innerText = 'PROCESANDO...';
+
+                    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+                    const expiry = new Date(Date.now() + 72 * 3600000).toISOString();
+
+                    try {
+                      const { error } = await (supabase.from('user_invitations') as any).insert([{
+                        email: email.trim().toLowerCase(),
+                        role: role,
+                        invite_code: code,
+                        expires_at: expiry,
+                        created_by: null
+                      }]);
+
+                      if (error) throw error;
+                      alert(`✅ SUCESSO!\n\nCódigo: ${code}\n\nCopie este código e use em "Primeiro Acceso"`);
+                      (document.getElementById('recovery-email') as HTMLInputElement).value = '';
+                    } catch (e: any) {
+                      alert('ERRO: ' + (e.message || 'Falha na conexão'));
+                    } finally {
+                      btn.disabled = false;
+                      btn.innerText = 'ENVIAR INVITACIÓN';
+                    }
+                  }}
+                  className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-8 rounded-xl shadow-lg shadow-blue-600/20 transition-all active:scale-95"
+                >
+                  ENVIAR INVITACIÓN
+                </button>
+              </div>
+            </div>
+          </div>
         </>
       )}
     </div>
