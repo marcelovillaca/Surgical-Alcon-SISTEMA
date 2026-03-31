@@ -73,7 +73,8 @@ function findValueByPriority(row: any, priorityGroups: string[][]): any {
 
 export function detectTemplate(headers: string[]): "ventas" | "targets" | "clientes" | "stock" | "conofta_targets" | "conofta_surgeries" | "conofta_indirect_costs" | "conofta_product_costs" | "conofta_expenses" | "conofta_surgeon_fees" | null {
   const upper = headers.map(h => h?.toString().trim().toUpperCase());
-  if (upper.includes("FECHA") && upper.some(h => h.includes("FAC")) && upper.some(h => h.includes("CODIGO"))) return "ventas";
+  // Ventas: FECHA + (FAC or NRO) + (CODIGO or PRODUCTO)
+  if (upper.includes("FECHA") && upper.some(h => h.includes("FAC") || h.includes("NRO")) && upper.some(h => h.includes("CODIGO") || h.includes("PRODUCTO"))) return "ventas";
   if (upper.some(h => h.includes("VISITADOR")) && upper.some(h => h.includes("ENERO"))) return "targets";
   if (upper.some(h => h.includes("VALOR CIRURGIA") || h.includes("VALOR CIRUGIA") || h.includes("REVENUE"))) return "conofta_targets";
   if (upper.some(h => h.includes("LOTE") || h.includes("SN")) && upper.some(h => h.includes("VENCIMIENTO"))) return "stock";
@@ -143,28 +144,57 @@ export function parseSalesSheet(sheet: XLSX.WorkSheet): { rows: SalesRow[]; erro
     ).trim();
     if (!fecha || !cliente) return;
 
-    // Determine if an explicit monetary column exists
-    const hasMonto = findValExact(raw, ["MONTO USD", "MONTO FACTURADO", "IMPORTE", "TOTAL USD"]) !== null;
+    // Determine if an explicit monetary column exists (MONTO USD or MONTO EN)
+    const montoUsdRaw = findValExact(raw, ["MONTO USD", "MONTO FACTURADO", "IMPORTE", "TOTAL USD"]);
+    const hasMonto = montoUsdRaw !== null && montoUsdRaw !== "";
+
+    // Read monto_en from the column — user's file uses "MONTO EN"
+    const montoEnRaw = findValExact(raw, ["MONTO EN", "MONEDA", "CURRENCY"]) ||
+                       findVal(raw, ["MONTO EN", "MONEDA EN"]);
+    const montoEn = montoEnRaw ? String(montoEnRaw).trim() : "USD";
 
     rows.push({
       fecha, cliente,
-      cod_cliente: String(findValExact(raw, ["COD CLIENTE", "COD. CLIENTE"]) || findVal(raw, ["CODIGO CLIENTE"]) || ""),
+      cod_cliente: String(
+        findValExact(raw, ["COD CLIENTE", "COD. CLIENTE"]) ||
+        findVal(raw, ["CODIGO CLIENTE"]) ||
+        ""
+      ),
       direccion: String(findVal(raw, ["DIRECCION"]) || ""),
       ciudad: String(findVal(raw, ["CIUDAD"]) || ""),
-      linea_de_producto: String(findVal(raw, ["LINEA"]) || ""),
-      factura_nro: String(findVal(raw, ["FAC", "NRO"]) || ""),
-      codigo_producto: String(findValExact(raw, ["CODIGO PRODUCTO"]) || findVal(raw, ["SKU"]) || ""),
-      producto: String(findValExact(raw, ["PRODUCTO"]) || findVal(raw, ["DESCRIPCION PRODUCTO", "NOMBRE PRODUCTO"]) || ""),
+      // Support both "LINEA" (template) and "LINEA DE PRODUCTO" (user file)
+      linea_de_producto: String(
+        findValExact(raw, ["LINEA DE PRODUCTO"]) ||
+        findVal(raw, ["LINEA", "LINEA PRODUCTO", "LINEA DE PRODUC"]) ||
+        ""
+      ),
+      // Support "FAC. NRO", "FAC NRO", "FAC"
+      factura_nro: String(
+        findValExact(raw, ["FAC. NRO", "FAC NRO", "FACTURA NRO", "FACTURA"]) ||
+        findVal(raw, ["FAC", "NRO FACTURA"]) ||
+        ""
+      ),
+      cod2: String(findVal(raw, ["COD2", "COD 2"]) || ""),
+      codigo_producto: String(
+        findValExact(raw, ["CODIGO PRODUCTO"]) ||
+        findVal(raw, ["SKU", "COD PRODUCTO"]) ||
+        ""
+      ),
+      producto: String(
+        findValExact(raw, ["PRODUCTO"]) ||
+        findVal(raw, ["DESCRIPCION PRODUCTO", "NOMBRE PRODUCTO"]) ||
+        ""
+      ),
       costo: toNum(findValExact(raw, ["COSTO"])),
-      // CANT/CANTIDAD = explicit unit qty; TOTAL is qty only when a separate MONTO USD column exists
+      // TOTAL: in user files this is the quantity or subtotal — read as-is
       total: toNum(
         findValExact(raw, ["CANT", "CANTIDAD", "QTY", "UNIDADES", "UNITS", "QTDE"]) ||
         (hasMonto ? findValExact(raw, ["TOTAL"]) : null)
       ),
-      monto_en: "USD",
-      // Monetary total: prefer explicit MONTO USD; fallback to TOTAL if no separate qty column
+      monto_en: montoEn,
+      // Monetary total: prefer explicit MONTO USD; fallback to TOTAL if no separate column
       monto_usd: toNum(
-        findValExact(raw, ["MONTO USD", "MONTO FACTURADO", "IMPORTE", "TOTAL USD"]) ||
+        montoUsdRaw ||
         (!hasMonto ? findValExact(raw, ["TOTAL"]) : null) ||
         findVal(raw, ["MONTO"])
       ),
@@ -299,7 +329,33 @@ export function parseConoftaTargetsSheet(sheet: XLSX.WorkSheet) {
 }
 
 export function parseConoftaSurgeonFeesSheet(sheet: XLSX.WorkSheet) { return parseConoftaProductCostsSheet(sheet); }
-export function parseTargetsSheet() { return { rows: [], errors: [], warnings: [] }; }
+export function parseTargetsSheet(sheet?: XLSX.WorkSheet): { rows: TargetRow[]; errors: string[]; warnings: string[] } {
+  if (!sheet) return { rows: [], errors: [], warnings: [] };
+  const data = XLSX.utils.sheet_to_json<any>(sheet, { defval: "" });
+  const rows: TargetRow[] = [];
+  const warnings: string[] = [];
+  const MES_NAMES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+  data.forEach((raw) => {
+    const visitador = String(
+      findVal(raw, ["VISITADOR", "VENDEDOR", "REP", "NOMBRE"]) || ""
+    ).trim();
+    const linea = String(
+      findVal(raw, ["LINEA", "LINEA DE PRODUCTO", "LINEA PRODUCTO", "PRODUCTO"]) || ""
+    ).trim();
+    if (!visitador || !linea) return;
+    const meses: Record<string, number> = {};
+    let total = 0;
+    MES_NAMES.forEach(m => {
+      const v = toNum(findVal(raw, [m.toUpperCase(), m]));
+      meses[m] = v;
+      total += v;
+    });
+    const explicitTotal = toNum(findVal(raw, ["TOTAL"]));
+    rows.push({ visitador, linea_de_producto: linea, meses, total: explicitTotal || total });
+  });
+  if (rows.length === 0) warnings.push("No se encontraron filas válidas. Verifique que las columnas Visitador, Linea y los meses estén presentes.");
+  return { rows, errors: [], warnings };
+}
 export function parseClientsSheet(sheet: XLSX.WorkSheet): { rows: ClientRow[]; errors: string[] } {
   const data = XLSX.utils.sheet_to_json<any>(sheet);
   const rows: ClientRow[] = [];
@@ -334,7 +390,20 @@ export function parseClientsSheet(sheet: XLSX.WorkSheet): { rows: ClientRow[]; e
   });
   return { rows, errors: [] };
 }
-export function parseStockSheet() { return { rows: [], errors: [] }; }
+export function parseStockSheet(sheet?: XLSX.WorkSheet): { rows: StockRow[]; errors: string[] } {
+  if (!sheet) return { rows: [], errors: [] };
+  const data = XLSX.utils.sheet_to_json<any>(sheet, { defval: "" });
+  const rows: StockRow[] = [];
+  data.forEach((r: any) => {
+    const cod = String(findVal(r, ["CODIGO PRODUCTO", "COD PRODUCTO", "SKU", "CODIGO"]) || "").trim();
+    const prod = String(findVal(r, ["PRODUCTO", "DESCRIPCION", "NOMBRE"]) || "").trim();
+    const lote = String(findVal(r, ["LOTE", "LOTE SN", "SN", "SERIE"]) || "").trim();
+    const venc = parseExcelDate(findVal(r, ["VENCIMIENTO", "FECHA VENCIMIENTO", "EXPIRY"]) || "");
+    if (!cod || !lote) return;
+    rows.push({ codigo_producto: cod, producto: prod, lote_sn: lote, fecha_vencimiento: venc });
+  });
+  return { rows, errors: [] };
+}
 
 export function downloadTemplate(type: string) {
   const wb = XLSX.utils.book_new();
