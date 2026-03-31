@@ -58,21 +58,13 @@ export default function Auth() {
     setLoading(true);
     setError("");
 
-    if (email === "marcelo.villaca@hotmail.com" && password === "Sport2123@") {
-      console.log("BYPASS: Forcing session for Marcello");
-      localStorage.setItem("emergency_admin_active", "true");
-      // Force a tiny delay to ensure storage is set before navigation
-      setTimeout(() => {
-        window.location.href = "/";
-      }, 100);
-      return;
-    }
-
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       setError(
-        error.message.includes("Invalid")
-          ? "Email o contraseña incorrectos."
+        error.message.includes("Invalid") || error.message.includes("invalid")
+          ? "Email o contraseña incorrectos. Verifique sus datos."
+          : error.message.includes("Email not confirmed")
+          ? "Confirme su email antes de ingresar. Revise su bandeja de entrada."
           : error.message
       );
     } else {
