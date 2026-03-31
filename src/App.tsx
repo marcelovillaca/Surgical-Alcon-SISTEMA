@@ -148,11 +148,11 @@ function ProtectedRoutes() {
           <Route path="/conofta/waitlist" element={<RoleGuard allow={["gerente", "admin_conofta", "coordinador_local"]}><Waitlist /></RoleGuard>} />
           <Route path="/conofta/lista" element={<RoleGuard allow={["gerente", "admin_conofta", "coordinador_local"]}><ConoftaLista /></RoleGuard>} />
           <Route path="/conofta/reportes" element={<RoleGuard allow={["gerente", "admin_conofta", "coordinador_local"]}><ConoftaReports /></RoleGuard>} />
-          <Route path="/conofta" element={<RoleGuard allow={["gerente"]}><Conofta /></RoleGuard>} />
+          <Route path="/conofta" element={<RoleGuard allow={["gerente", "admin_conofta", "coordinador_local"]}><Conofta /></RoleGuard>} />
           <Route path="/conofta/settings" element={<RoleGuard allow={["gerente", "admin_conofta"]}><ConoftaSettings /></RoleGuard>} />
           <Route path="/reportes" element={<RoleGuard allow={["gerente"]}><Reportes /></RoleGuard>} />
-          <Route path="/usuarios" element={<RoleGuard allow={["gerente"]}><InviteUsers /></RoleGuard>} />
-          <Route path="/auditoria" element={<RoleGuard allow={["gerente"]}><AuditLogs /></RoleGuard>} />
+          <Route path="/usuarios" element={<RoleGuard allow={["gerente", "admin_conofta"]}><InviteUsers /></RoleGuard>} />
+          <Route path="/auditoria" element={<RoleGuard allow={["gerente", "admin_conofta"]}><AuditLogs /></RoleGuard>} />
           <Route path="/configuracion" element={<RoleGuard allow={["gerente"]}><PlaceholderPage title="Configuración" description="Gestión de parámetros del sistema." /></RoleGuard>} />
           <Route path="/logistica" element={<RoleGuard allow={["gerente", "bodega", "expedicion"]}><PlaceholderPage title="Logística" description="Módulo de expedición." /></RoleGuard>} />
           <Route path="*" element={<NotFound />} />

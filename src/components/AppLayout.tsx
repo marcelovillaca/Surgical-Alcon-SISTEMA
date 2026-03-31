@@ -222,12 +222,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 <li key={item.to}>
                   <NavLink
                     to={item.to}
-                    end={item.to === "/"}
+                    end={item.to === "/" || item.to === "/conofta"}
                     className={({ isActive }) =>
                       cn(
                         "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 relative overflow-hidden group",
                         isActive
-                          ? "bg-sidebar-accent text-primary"
+                          ? (activeModule === "conofta" ? "bg-blue-600/10 text-blue-400" : "bg-sidebar-accent text-primary")
                           : "text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
                       )
                     }
@@ -235,9 +235,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     {({ isActive }) => (
                       <>
                         {isActive && (
-                          <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 bg-primary rounded-r-full" />
+                          <span className={cn("absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 rounded-r-full", activeModule === "conofta" ? "bg-blue-400" : "bg-primary")} />
                         )}
-                        <item.icon className={cn("h-4 w-4 shrink-0 transition-colors", isActive && "text-primary")} />
+                        <item.icon className={cn("h-4 w-4 shrink-0 transition-colors", isActive && (activeModule === "conofta" ? "text-blue-400" : "text-primary"))} />
                         {!collapsed && <span className="truncate">{item.label}</span>}
                       </>
                     )}
