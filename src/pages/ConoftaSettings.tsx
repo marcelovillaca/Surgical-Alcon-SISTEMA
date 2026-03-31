@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   Building2, 
   Plus, 
@@ -17,22 +18,30 @@ import {
   Zap,
   Settings,
   Stethoscope,
-  ChevronRight
+  ChevronRight,
+  DollarSign,
+  Edit2,
+  Check
 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function ConoftaSettings() {
   const [institutions, setInstitutions] = useState<any[]>([]);
   const [surgeons, setSurgeons] = useState<any[]>([]);
+  const [revenueConfig, setRevenueConfig] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [editingRevenue, setEditingRevenue] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
   
   const [newSede, setNewSede] = useState({ name: "", city: "", address: "" });
   const [newSurgeon, setNewSurgeon] = useState({ name: "", specialty: "Oftalmología", institution_id: "" });
+  const [newRevenue, setNewRevenue] = useState({ anio: new Date().getFullYear(), tipo_cirugia: "Catarata", ingreso_por_cirugia: "", sucursal: "", moneda: "USD" });
 
   useEffect(() => {
     fetchInstitutions();
     fetchSurgeons();
+    fetchRevenueConfig();
   }, []);
 
   async function fetchInstitutions() {
@@ -49,6 +58,35 @@ export default function ConoftaSettings() {
       .select('*, institutions(name)')
       .order('name');
     if (!error) setSurgeons(data || []);
+  }
+
+  async function fetchRevenueConfig() {
+    const { data } = await (supabase.from('conofta_revenue_config' as any).select('*').order('anio', { ascending: false }) as any);
+    if (data) setRevenueConfig(data);
+  }
+
+  async function handleSaveRevenue(id: string, value: number) {
+    const { error } = await (supabase.from('conofta_revenue_config' as any)
+      .update({ ingreso_por_cirugia: value })
+      .eq('id', id) as any);
+    if (error) toast.error("Error al guardar: " + error.message);
+    else { toast.success("Ingreso actualizado"); setEditingRevenue(null); fetchRevenueConfig(); }
+  }
+
+  async function handleAddRevenue() {
+    const val = parseFloat(String(newRevenue.ingreso_por_cirugia).replace(',', '.'));
+    if (!newRevenue.tipo_cirugia || isNaN(val)) { toast.error("Complete los campos requeridos"); return; }
+    setIsSaving(true);
+    const { error } = await (supabase.from('conofta_revenue_config' as any).upsert({
+      anio: newRevenue.anio,
+      tipo_cirugia: newRevenue.tipo_cirugia,
+      sucursal: newRevenue.sucursal || null,
+      ingreso_por_cirugia: val,
+      moneda: newRevenue.moneda
+    }, { onConflict: 'anio, sucursal, tipo_cirugia' }) as any);
+    if (error) toast.error("Error: " + error.message);
+    else { toast.success("Ingreso configurado"); setNewRevenue({ ...newRevenue, ingreso_por_cirugia: "" }); fetchRevenueConfig(); }
+    setIsSaving(false);
   }
 
   async function handleAddSede() {
@@ -130,6 +168,10 @@ export default function ConoftaSettings() {
           <TabsTrigger value="cirujanos" className="px-8 data-[state=active]:bg-background">
             <Stethoscope className="h-4 w-4 mr-2" />
             Médicos Cirujanos
+          </TabsTrigger>
+          <TabsTrigger value="ingresos" className="px-8 data-[state=active]:bg-background">
+            <DollarSign className="h-4 w-4 mr-2" />
+            Ingresos Públicos
           </TabsTrigger>
         </TabsList>
 
@@ -302,6 +344,140 @@ export default function ConoftaSettings() {
                 </div>
               </Card>
            </div>
+        </TabsContent>
+
+        {/* ─────── INGRESOS PÚBLICOS POR CIRUGÍA ─────── */}
+        <TabsContent value="ingresos" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Form: Nuevo Ingreso */}
+            <Card className="lg:col-span-1 border-border/50 bg-card/80 backdrop-blur-md shadow-xl h-fit">
+              <CardHeader>
+                <CardTitle className="text-lg font-bold flex items-center gap-2">
+                  <DollarSign className="h-5 w-5 text-green-500" />
+                  Configurar Ingreso
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">Lo que paga el gobierno por cada cirugía realizada en el proyecto CONOFTA.</p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] uppercase font-bold text-muted-foreground ml-1">Año *</Label>
+                  <Input
+                    type="number"
+                    value={newRevenue.anio}
+                    onChange={(e) => setNewRevenue({...newRevenue, anio: parseInt(e.target.value)})}
+                    className="h-11 bg-background/50 border-white/5"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] uppercase font-bold text-muted-foreground ml-1">Tipo de Cirugía *</Label>
+                  <select
+                    value={newRevenue.tipo_cirugia}
+                    onChange={(e) => setNewRevenue({...newRevenue, tipo_cirugia: e.target.value})}
+                    className="w-full h-11 rounded-md border border-border bg-background/50 px-3 text-sm"
+                  >
+                    <option value="Catarata">Catarata</option>
+                    <option value="Retina">Retina</option>
+                    <option value="Pterigion">Pterigion</option>
+                    <option value="Glaucoma">Glaucoma</option>
+                    <option value="Otro">Otro</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] uppercase font-bold text-muted-foreground ml-1">Sede (opcional, vacío = todas)</Label>
+                  <select
+                    value={newRevenue.sucursal}
+                    onChange={(e) => setNewRevenue({...newRevenue, sucursal: e.target.value})}
+                    className="w-full h-11 rounded-md border border-border bg-background/50 px-3 text-sm"
+                  >
+                    <option value="">Todas las sedes</option>
+                    {institutions.map(i => <option key={i.id} value={i.name}>{i.name}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] uppercase font-bold text-muted-foreground ml-1">Ingreso por Cirugía (USD) *</Label>
+                  <Input
+                    type="number"
+                    value={newRevenue.ingreso_por_cirugia}
+                    onChange={(e) => setNewRevenue({...newRevenue, ingreso_por_cirugia: e.target.value})}
+                    placeholder="Ej: 1200.00"
+                    className="h-11 bg-background/50 border-white/5"
+                  />
+                </div>
+                <Button onClick={handleAddRevenue} className="w-full gradient-emerald shadow-lg h-11" disabled={isSaving}>
+                  {isSaving ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2 h-4 w-4" />}
+                  Guardar Ingreso
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Table: Configuración vigente */}
+            <Card className="lg:col-span-2 border-border/50 bg-card overflow-hidden shadow-xl">
+              <CardHeader className="bg-muted/30 border-b border-border">
+                <CardTitle className="text-sm font-bold flex items-center gap-2">
+                  <DollarSign className="h-4 w-4 text-green-500" />
+                  Ingresos Configurados
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">Estos valores se usan para calcular la facturación total y el P&L de CONOFTA.</p>
+              </CardHeader>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-muted/40 border-b border-border">
+                      <th className="p-4 text-[10px] font-black text-muted-foreground uppercase">Año</th>
+                      <th className="p-4 text-[10px] font-black text-muted-foreground uppercase">Tipo Cirugía</th>
+                      <th className="p-4 text-[10px] font-black text-muted-foreground uppercase">Sede</th>
+                      <th className="p-4 text-[10px] font-black text-muted-foreground uppercase text-right">USD / Cirugía</th>
+                      <th className="p-4"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/30 text-sm">
+                    {revenueConfig.length === 0 && (
+                      <tr><td colSpan={5} className="p-10 text-center text-muted-foreground italic text-sm">Sin configuración. Agregue ingresos usando el formulario.</td></tr>
+                    )}
+                    {revenueConfig.map((r: any) => (
+                      <tr key={r.id} className="hover:bg-muted/5 group transition-colors">
+                        <td className="p-4 font-bold">{r.anio}</td>
+                        <td className="p-4">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-black bg-green-500/10 text-green-400 border border-green-500/20">
+                            {r.tipo_cirugia}
+                          </span>
+                        </td>
+                        <td className="p-4 text-muted-foreground text-xs">{r.sucursal || "Todas"}</td>
+                        <td className="p-4 text-right font-mono font-bold">
+                          {editingRevenue === r.id ? (
+                            <div className="flex items-center gap-2 justify-end">
+                              <Input
+                                type="number"
+                                value={editValue}
+                                onChange={(e) => setEditValue(e.target.value)}
+                                className="w-28 h-8 text-right text-sm"
+                                autoFocus
+                              />
+                              <Button size="icon" className="h-8 w-8 bg-green-600" onClick={() => handleSaveRevenue(r.id, parseFloat(editValue))}>
+                                <Check className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <span className={r.ingreso_por_cirugia === 0 ? "text-red-400" : "text-green-400"}>
+                              ${Number(r.ingreso_por_cirugia).toFixed(2)}
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-4 text-right">
+                          <Button
+                            variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 text-blue-400"
+                            onClick={() => { setEditingRevenue(r.id); setEditValue(r.ingreso_por_cirugia); }}
+                          >
+                            <Edit2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
     </div>
