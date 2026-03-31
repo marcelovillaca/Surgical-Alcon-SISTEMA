@@ -133,7 +133,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     .filter((group) => group.items.length > 0);
 
   const allItems = [...menuGroups.alcon, ...menuGroups.conofta].flatMap((g) => g.items);
-  const currentLabel = allItems.find((i) => i.to === location.pathname)?.label || "Dashboard";
+  let currentLabel = allItems.find((i) => i.to === location.pathname)?.label;
+  
+  // Custom label logic for CONOFTA users landing on root
+  if (roleIsConoftaOnly && (location.pathname === "/" || location.pathname === "/conofta")) {
+    currentLabel = "Centro de Comando";
+  } else if (!currentLabel) {
+    currentLabel = roleIsConoftaOnly ? "Centro de Comando" : "Dashboard de Ventas";
+  }
 
   // Bottom nav items for mobile (most used)
   const bottomNavItems = filteredGroups.flatMap(g => g.items).slice(0, 4);

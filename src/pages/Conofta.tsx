@@ -162,44 +162,67 @@ export default function Conofta() {
                 </TabsList>
 
                 {/* ══ CENTRO DE COMANDO ══════════════════════════════════════ */}
-                <CentroDeComando onNavigate={navigate} />
+                <CentroDeComando onNavigate={navigate} isGerenteUser={isGerenteUser || false} />
 
                 <TabsContent value="kpis" className="space-y-8 mt-0">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                        <KpiCard title="Cirugías Realizadas" value={data.kpis.surgeries.toString()} change={`${data.kpis.targetSurgeries} Meta`} changeType="neutral" icon={Activity} variant="gold" />
-                        <KpiCard title="Cumplimiento Global" value={formatPct(data.kpis.cumplimiento)} changeType={data.kpis.cumplimiento >= 100 ? "positive" : "neutral"} icon={ClipboardList} variant="default" />
-                        {/* More operational cards can go here */}
+                    <div className={cn("grid grid-cols-1 sm:grid-cols-2 gap-6", isGerenteUser ? "lg:grid-cols-4" : "lg:grid-cols-2")}>
+                        <KpiCard 
+                            title="Cirugías Realizadas" 
+                            value={data.kpis.surgeries.toString()} 
+                            change={isGerenteUser ? `${data.kpis.targetSurgeries} Meta` : undefined} 
+                            changeType="neutral" 
+                            icon={Activity} 
+                            variant="gold" 
+                        />
+                        {isGerenteUser && (
+                            <KpiCard 
+                                title="Cumplimiento Global" 
+                                value={formatPct(data.kpis.cumplimiento)} 
+                                changeType={data.kpis.cumplimiento >= 100 ? "positive" : "neutral"} 
+                                icon={ClipboardList} 
+                                variant="default" 
+                            />
+                        )}
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
                         {data.summaryGauges.map((g) => (
                             <div key={g.name} className="bg-card/50 backdrop-blur-md border border-border/50 rounded-2xl p-6 flex flex-col items-center justify-center relative overflow-hidden group hover:border-primary/50 transition-all shadow-xl shadow-black/20">
                                 <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] text-center mb-4">{g.name}</h3>
-                                <div className="h-28 w-full relative flex items-center justify-center">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <PieChart>
-                                            <Pie
-                                                data={[
-                                                    { value: Math.min(g.pct, 100) },
-                                                    { value: 100 - Math.min(g.pct, 100) }
-                                                ]}
-                                                cx="50%" cy="100%"
-                                                innerRadius={40} outerRadius={55}
-                                                startAngle={180} endAngle={0}
-                                                paddingAngle={0} dataKey="value" stroke="none"
-                                            >
-                                                <Cell fill={g.pct >= 100 ? "hsl(var(--emerald))" : "hsl(var(--primary))"} />
-                                                <Cell fill="rgba(255,255,255,0.05)" />
-                                            </Pie>
-                                        </PieChart>
-                                    </ResponsiveContainer>
-                                    <div className="absolute inset-0 flex flex-col items-center justify-end pb-2">
-                                        <span className="text-2xl font-black">{Math.round(g.pct)}%</span>
+                                {isGerenteUser ? (
+                                    <>
+                                        <div className="h-28 w-full relative flex items-center justify-center">
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <PieChart>
+                                                    <Pie
+                                                        data={[
+                                                            { value: Math.min(g.pct, 100) },
+                                                            { value: 100 - Math.min(g.pct, 100) }
+                                                        ]}
+                                                        cx="50%" cy="100%"
+                                                        innerRadius={40} outerRadius={55}
+                                                        startAngle={180} endAngle={0}
+                                                        paddingAngle={0} dataKey="value" stroke="none"
+                                                    >
+                                                        <Cell fill={g.pct >= 100 ? "hsl(var(--emerald))" : "hsl(var(--primary))"} />
+                                                        <Cell fill="rgba(255,255,255,0.05)" />
+                                                    </Pie>
+                                                </PieChart>
+                                            </ResponsiveContainer>
+                                            <div className="absolute inset-0 flex flex-col items-center justify-end pb-2">
+                                                <span className="text-2xl font-black">{Math.round(g.pct)}%</span>
+                                            </div>
+                                        </div>
+                                        <div className="mt-4 text-[11px] font-bold text-muted-foreground">
+                                            {g.current} / {g.target} <Badge variant="outline" className="ml-1 text-[8px] h-4">JORNADA</Badge>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div className="flex flex-col items-center justify-center py-6">
+                                        <span className="text-4xl font-black text-primary">{g.current}</span>
+                                        <span className="text-[10px] font-bold text-muted-foreground mt-2 uppercase tracking-tighter">Cirugías Realizadas</span>
                                     </div>
-                                </div>
-                                <div className="mt-4 text-[11px] font-bold text-muted-foreground">
-                                    {g.current} / {g.target} <Badge variant="outline" className="ml-1 text-[8px] h-4">JORNADA</Badge>
-                                </div>
+                                )}
                             </div>
                         ))}
                     </div>
@@ -351,7 +374,7 @@ export default function Conofta() {
 
 
 // ─── Centro de Comando Component ────────────────────────────────────────────
-function CentroDeComando({ onNavigate }: { onNavigate: (path: string) => void }) {
+function CentroDeComando({ onNavigate, isGerenteUser }: { onNavigate: (path: string) => void, isGerenteUser: boolean }) {
     const { entries, loading } = useWaitlist();
 
     const stats = useMemo(() => {
@@ -408,9 +431,8 @@ function CentroDeComando({ onNavigate }: { onNavigate: (path: string) => void })
                     { label: "Aptos p/ Agendar 🔴", value: stats.apto,                 color: "text-emerald-400", hint: "Acción urgente" },
                     { label: "Agendados",            value: stats.agendado,             color: "text-blue-400",    hint: "Con fecha asignada" },
                     { label: "Carga AV Pendiente",  value: stats.operado,              color: "text-indigo-400",  hint: "Post-op sin registrar" },
-                    { label: "Tasa Conversión",     value: `${stats.convRate}%`,        color: stats.convRate >= 70 ? "text-emerald-400" : "text-rose-400", hint: "Ingresos → Operados" },
-                    { label: "Críticos >14 días",   value: stats.critical.length,       color: stats.critical.length > 0 ? "text-rose-400" : "text-zinc-500", hint: "Sin movimiento" },
-                ].map((kpi) => (
+                    { label: "Críticos >14 días",   value: stats.critical.length,       color: stats.critical.length > 0 ? "text-rose-400" : "text-zinc-500", hint: "Sin movimento" },
+                ].filter(Boolean).map((kpi) => (
                     <div key={kpi.label} className="rounded-2xl border border-border bg-card/60 p-4 space-y-1">
                         <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground leading-tight">{kpi.label}</p>
                         <p className={cn("text-3xl font-black font-display", kpi.color)}>{kpi.value}</p>
@@ -430,16 +452,18 @@ function CentroDeComando({ onNavigate }: { onNavigate: (path: string) => void })
                             <h3 className="text-sm font-bold text-foreground">Embudo de Conversión de Pacientes</h3>
                             <p className="text-[11px] text-muted-foreground">Flujo quirúrgico completo</p>
                         </div>
-                        <div className="ml-auto">
-                            <span className={cn("text-sm font-black", stats.convRate >= 70 ? "text-emerald-400" : "text-rose-400")}>
-                                {stats.convRate}% conversión
-                            </span>
-                        </div>
+                        {isGerenteUser && (
+                            <div className="ml-auto">
+                                <span className={cn("text-sm font-black", stats.convRate >= 70 ? "text-emerald-400" : "text-rose-400")}>
+                                    {stats.convRate}% conversión
+                                </span>
+                            </div>
+                        )}
                     </div>
                     <div className="space-y-3">
                         {funnelSteps.map((step, i) => {
                             const pct = funnelSteps[0].count > 0 ? (step.count / funnelSteps[0].count) * 100 : 0;
-                            const dropPct = i > 0 && funnelSteps[i - 1].count > 0
+                            const dropPct = isGerenteUser && i > 0 && funnelSteps[i - 1].count > 0
                                 ? Math.round(((funnelSteps[i - 1].count - step.count) / funnelSteps[i - 1].count) * 100)
                                 : null;
                             return (
