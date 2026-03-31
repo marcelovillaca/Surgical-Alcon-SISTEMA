@@ -7,8 +7,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import RoleGuard from "@/components/RoleGuard";
 import AppLayout from "@/components/AppLayout";
-import { Loader2 } from "lucide-react";
-import React, { Suspense, lazy } from "react";
+import { Loader2, ShieldAlert, Mail } from "lucide-react";
+import React, { Suspense, lazy, useEffect } from "react";
 
 // Lazy-load all pages to prevent one bad page from killing the boot
 const Auth = lazy(() => import("./pages/Auth"));
@@ -45,10 +45,49 @@ const PageLoader = () => (
   </div>
 );
 
+// ─── Pending Account Screen (user authenticated but no role assigned yet) ───
+function PendingAccount() {
+  const { user, signOut } = useAuth();
+  return (
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6">
+      <div className="max-w-md w-full text-center space-y-6">
+        <div className="mx-auto h-20 w-20 rounded-full bg-amber-500/10 flex items-center justify-center ring-2 ring-amber-500/20">
+          <ShieldAlert className="h-10 w-10 text-amber-500" />
+        </div>
+        <div className="space-y-2">
+          <h1 className="text-2xl font-display font-bold text-foreground">Cuenta Pendiente de Activación</h1>
+          <p className="text-sm text-muted-foreground">
+            Tu cuenta (<span className="text-primary font-medium">{user?.email}</span>) está registrada pero aún no tiene un rol asignado.
+          </p>
+          <p className="text-xs text-muted-foreground/70 mt-3">
+            Contacta al Gerente del sistema para que asigne tu perfil de acceso.
+          </p>
+        </div>
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-left">
+          <p className="text-xs font-semibold text-amber-400 mb-1">¿Qué hacer?</p>
+          <ul className="text-xs text-muted-foreground space-y-1">
+            <li>• Contacta al Gerente: <span className="text-primary">marcelo.villaca@hotmail.com</span></li>
+            <li>• Indica tu email y solicita la activación de tu cuenta</li>
+            <li>• Una vez activado, cierra sesión y vuelve a ingresar</li>
+          </ul>
+        </div>
+        <button
+          onClick={signOut}
+          className="text-xs text-muted-foreground hover:text-destructive transition-colors underline underline-offset-4"
+        >
+          Cerrar sesión
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function SmartDashboard() {
   const { role, loading } = useUserRole();
 
   if (loading) return <PageLoader />;
+  // No role assigned — show pending screen instead of dashboard
+  if (!role) return <PendingAccount />;
   if (role === "visitador") return <VisitadorDashboard />;
   return <Index />;
 }
@@ -56,6 +95,27 @@ function SmartDashboard() {
 function ProtectedRoutes() {
   const { user, loading } = useAuth();
   const { isBlocked, loading: roleLoading } = useUserRole();
+
+  // ── Recovery token detection (fixes HashRouter + Supabase password reset) ──
+  // Supabase sends: /#access_token=X&refresh_token=Y&type=recovery
+  // HashRouter sees this as route "/" with search params. We detect and redirect.
+  useEffect(() => {
+    const hash = window.location.hash;
+    // Check if the URL fragment (after #) contains Supabase recovery tokens
+    // This happens when HashRouter is used: the full URL is
+    // https://app.com/#access_token=X&type=recovery  (no /auth prefix)
+    if (hash.includes("type=recovery") && hash.includes("access_token")) {
+      // Parse tokens from the hash string
+      const paramStr = hash.replace(/^#\/?/, "").replace(/^\/.*?\?/, "");
+      const params = new URLSearchParams(paramStr);
+      const access_token = params.get("access_token") || "";
+      const refresh_token = params.get("refresh_token") || "";
+      // Replace hash with /auth route, passing tokens as query params
+      window.location.replace(
+        `${window.location.origin}${window.location.pathname}#/auth?type=recovery&access_token=${access_token}&refresh_token=${refresh_token}`
+      );
+    }
+  }, []);
 
   if (loading || roleLoading) return <PageLoader />;
   if (!user) return <Navigate to="/auth" replace />;

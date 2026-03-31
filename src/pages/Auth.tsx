@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -20,12 +20,31 @@ export default function Auth() {
   const [searchParams]                = useSearchParams();
   const isBlocked                     = searchParams.get("blocked") === "1";
 
-  // Check if we are coming from a password reset link
-  useState(() => {
-    if (window.location.hash.includes("type=recovery")) {
+  // Detect recovery tokens — handles both HashRouter redirect and direct Supabase links
+  useEffect(() => {
+    const type = searchParams.get("type");
+    const accessToken = searchParams.get("access_token");
+    const refreshToken = searchParams.get("refresh_token");
+
+    // Case 1: App.tsx redirected here with tokens as query params
+    if (type === "recovery" && accessToken) {
+      setMode("update_password");
+      // Exchange the tokens so Supabase knows the session
+      supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken || "",
+      }).then(({ error }) => {
+        if (error) setError("Link de recuperación inválido o expirado. Solicita uno nuevo.");
+      });
+      return;
+    }
+
+    // Case 2: Direct Supabase link with hash (non-HashRouter scenario)
+    const hash = window.location.hash;
+    if (hash.includes("type=recovery") && hash.includes("access_token")) {
       setMode("update_password");
     }
-  });
+  }, [searchParams]);
 
   const validatePassword = (pass: string) => {
     const feedback: string[] = [];
@@ -143,11 +162,11 @@ export default function Auth() {
     setLoading(true);
     setError("");
     setMessage("");
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth`,
-    });
+    // Use the hash-based auth URL so HashRouter handles it correctly
+    const redirectTo = `${window.location.origin}${window.location.pathname}#/auth`;
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
     if (error) setError(error.message);
-    else setMessage("Se ha enviado un correo de recuperación.");
+    else setMessage("✅ Se ha enviado un link de recuperación a tu email. Revisa tu bandeja de entrada.");
     setLoading(false);
   };
 
