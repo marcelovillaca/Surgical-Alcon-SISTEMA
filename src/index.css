@@ -2,27 +2,31 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap');
+/* ── Fonts: Inter body + Playfair Display headings (inspired by DMRI Seca site) ── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:wght@400;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
 @layer base {
   :root {
-    --background: 0 0% 7%;
+    /* Core colors */
+    --background: 220 30% 5%;
     --foreground: 0 0% 95%;
 
-    --card: 0 0% 12%;
+    --card: 220 25% 9%;
     --card-foreground: 0 0% 95%;
 
-    --popover: 0 0% 10%;
+    --popover: 220 25% 8%;
     --popover-foreground: 0 0% 95%;
 
+    /* Primary: Gold accent (Alcon brand) */
     --primary: 45 90% 55%;
     --primary-foreground: 0 0% 5%;
 
+    /* Secondary: Cyan/teal */
     --secondary: 197 100% 44%;
     --secondary-foreground: 0 0% 98%;
 
-    --muted: 0 0% 16%;
-    --muted-foreground: 0 0% 55%;
+    --muted: 220 20% 14%;
+    --muted-foreground: 220 10% 55%;
 
     --accent: 197 100% 44%;
     --accent-foreground: 0 0% 98%;
@@ -30,48 +34,41 @@
     --destructive: 0 72% 50%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 0 0% 18%;
-    --input: 0 0% 18%;
+    --border: 220 20% 16%;
+    --input: 220 20% 16%;
     --ring: 45 90% 55%;
 
-    --radius: 0.625rem;
+    --radius: 0.75rem;
 
-    --sidebar-background: 0 0% 9%;
-    --sidebar-foreground: 0 0% 70%;
+    --sidebar-background: 220 30% 7%;
+    --sidebar-foreground: 220 10% 70%;
     --sidebar-primary: 45 90% 55%;
     --sidebar-primary-foreground: 0 0% 5%;
-    --sidebar-accent: 0 0% 14%;
+    --sidebar-accent: 220 25% 12%;
     --sidebar-accent-foreground: 0 0% 90%;
-    --sidebar-border: 0 0% 15%;
+    --sidebar-border: 220 20% 13%;
     --sidebar-ring: 45 90% 55%;
 
-    /* Custom tokens */
+    /* Custom Design Tokens */
     --gold: 45 90% 55%;
     --gold-dim: 45 60% 40%;
     --alcon-blue: 197 100% 44%;
     --alcon-blue-dim: 197 70% 32%;
-    --emerald: 160 60% 38%;
+    --emerald: 160 65% 40%;
     --emerald-dim: 160 40% 28%;
-    --surface-elevated: 0 0% 14%;
+    --surface-elevated: 220 25% 12%;
+
     --chart-1: 45 90% 55%;
     --chart-2: 197 100% 44%;
-    --chart-3: 200 70% 50%;
+    --chart-3: 160 65% 40%;
     --chart-4: 280 60% 55%;
     --chart-5: 20 80% 55%;
 
-    /* UI-UX-PRO-MAX Spacing & Shadows */
-    --space-xs: 0.25rem;
-    --space-sm: 0.5rem;
-    --space-md: 1rem;
-    --space-lg: 1.5rem;
-    --space-xl: 2rem;
-    --space-2xl: 3rem;
-    --space-3xl: 4rem;
-
-    --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
-    --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
-    --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
-    --shadow-xl: 0 20px 25px -5px rgba(0,0,0,0.15), 0 10px 10px -5px rgba(0,0,0,0.04);
+    /* Shadows */
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.15);
+    --shadow-md: 0 4px 16px rgba(0,0,0,0.2);
+    --shadow-lg: 0 10px 32px rgba(0,0,0,0.25);
+    --shadow-xl: 0 20px 48px rgba(0,0,0,0.35);
 
     --transition: 200ms cubic-bezier(0.4, 0, 0.2, 1);
   }
@@ -80,50 +77,147 @@
 @layer base {
   * {
     @apply border-border;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    /* Prevent overscroll bounce on iOS */
+    overscroll-behavior: none;
   }
 
   body {
-    @apply bg-background text-foreground font-sans antialiased;
-    font-family: 'Fira Sans', 'Inter', system-ui, sans-serif;
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    /* Improve text rendering on mobile */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
 
+  /* Headings use display font (Playfair Display for premium feel) */
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Fira Code', 'Space Grotesk', system-ui, sans-serif;
+    font-family: 'Playfair Display', 'Space Grotesk', system-ui, sans-serif;
     @apply font-semibold tracking-tight;
+  }
+
+  /* Better scrollbars */
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground)); }
+
+  /* Safe area for iOS notch/home indicator */
+  .safe-area-inset-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 }
 
 @layer utilities {
+  /* ── Glow Effects ── */
   .gold-glow {
-    box-shadow: 0 0 20px hsl(45 90% 55% / 0.15), 0 0 60px hsl(45 90% 55% / 0.05);
+    box-shadow: 0 0 16px hsl(45 90% 55% / 0.2), 0 0 48px hsl(45 90% 55% / 0.08);
   }
-
   .emerald-glow {
-    box-shadow: 0 0 20px hsl(197 100% 44% / 0.15), 0 0 60px hsl(197 100% 44% / 0.05);
+    box-shadow: 0 0 16px hsl(197 100% 44% / 0.2), 0 0 48px hsl(197 100% 44% / 0.08);
+  }
+  .green-glow {
+    box-shadow: 0 0 16px hsl(160 65% 40% / 0.2), 0 0 48px hsl(160 65% 40% / 0.08);
   }
 
-  .card-hover {
-    @apply transition-all duration-300 hover:border-primary/30;
-  }
-
+  /* ── Glass Surfaces (DMRI style) ── */
   .glass-surface {
-    background: hsl(0 0% 12% / 0.8);
-    backdrop-filter: blur(12px);
+    background: hsl(220 25% 9% / 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid hsl(220 20% 20% / 0.5);
   }
 
+  .glass-card {
+    background: hsl(220 25% 9% / 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid hsl(220 20% 16% / 0.6);
+  }
+
+  /* ── Gradients ── */
   .gradient-gold {
     background: linear-gradient(135deg, hsl(45 90% 55%), hsl(35 85% 45%));
   }
-
   .gradient-emerald {
     background: linear-gradient(135deg, hsl(197 100% 44%), hsl(207 80% 35%));
   }
-
-  .text-gold {
-    color: hsl(45 90% 55%);
+  .gradient-green {
+    background: linear-gradient(135deg, hsl(160 65% 42%), hsl(160 50% 32%));
   }
 
-  .text-emerald {
-    color: hsl(197 100% 44%);
+  /* ── Text Colors ── */
+  .text-gold { color: hsl(45 90% 55%); }
+  .text-emerald { color: hsl(197 100% 44%); }
+  .text-green-accent { color: hsl(160 65% 42%); }
+
+  /* ── Card Hover Animation ── */
+  .card-hover {
+    @apply transition-all duration-300;
+  }
+  .card-hover:hover {
+    transform: translateY(-1px);
+    border-color: hsl(var(--primary) / 0.25);
+    box-shadow: 0 8px 32px hsl(var(--primary) / 0.06);
+  }
+
+  /* ── Font Display (Playfair) ── */
+  .font-display {
+    font-family: 'Playfair Display', 'Space Grotesk', serif;
+  }
+
+  /* ── Mobile Touch Targets ── */
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* ── Micro animations ── */
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes slide-in {
+    from { opacity: 0; transform: translateX(-12px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes slide-up {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .animate-fade-in   { animation: fade-in 0.35s ease-out both; }
+  .animate-slide-in  { animation: slide-in 0.3s ease-out both; }
+  .animate-slide-up  { animation: slide-up 0.4s ease-out both; }
+
+  /* Stagger children animations */
+  .stagger > *:nth-child(1) { animation-delay: 0ms; }
+  .stagger > *:nth-child(2) { animation-delay: 60ms; }
+  .stagger > *:nth-child(3) { animation-delay: 120ms; }
+  .stagger > *:nth-child(4) { animation-delay: 180ms; }
+  .stagger > *:nth-child(5) { animation-delay: 240ms; }
+
+  /* ── Mobile-first responsive utilities ── */
+  .mobile-stack {
+    @apply flex flex-col gap-4 md:flex-row md:items-center;
+  }
+
+  .mobile-full {
+    @apply w-full md:w-auto;
+  }
+
+  /* ── KPI Cards responsive ── */
+  .kpi-grid {
+    @apply grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4;
+  }
+
+  /* ── Tables on mobile ── */
+  .table-mobile-scroll {
+    @apply overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0;
   }
 }

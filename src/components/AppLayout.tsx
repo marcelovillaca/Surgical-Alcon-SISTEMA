@@ -1,49 +1,23 @@
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
-  LayoutDashboard,
-  Package,
-  Users,
-  ClipboardList,
-  MapPin,
-  Truck,
-  TrendingUp,
-  Settings,
-  ChevronLeft,
-  ChevronRight,
-  LogOut,
-  Shield,
-  FileDown,
-  FileText,
-  BarChart2,
-  PieChart,
-  ClipboardCheck,
-  UserCog,
-  BarChart3,
+  LayoutDashboard, Package, Users, ClipboardList, MapPin, Truck,
+  TrendingUp, Settings, ChevronLeft, ChevronRight, LogOut, Shield,
+  FileDown, FileText, BarChart2, PieChart, ClipboardCheck, UserCog,
+  BarChart3, Menu, X, Home,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole, AppRole, ALCON_ROLES, CONOFTA_ROLES } from "@/hooks/useUserRole";
 
-type MenuItem = {
-  to: string;
-  icon: typeof LayoutDashboard;
-  label: string;
-  roles?: AppRole[]; // undefined = all roles
-};
-
-type MenuGroup = {
-  label: string;
-  items: MenuItem[];
-  roles?: AppRole[]; // undefined = all roles
-};
+type MenuItem = { to: string; icon: typeof LayoutDashboard; label: string; roles?: AppRole[] };
+type MenuGroup = { label: string; items: MenuItem[]; roles?: AppRole[] };
 
 const menuGroups: Record<"alcon" | "conofta", MenuGroup[]> = {
   alcon: [
     {
       label: "Inicio",
       items: [
-        // Visitador vê seu dashboard exclusivo; outros veem o geral
         { to: "/", icon: BarChart3, label: "Mi Dashboard", roles: ["visitador"] },
         { to: "/", icon: LayoutDashboard, label: "Dashboard", roles: ["gerente", "bodega", "expedicion"] },
       ],
@@ -82,9 +56,9 @@ const menuGroups: Record<"alcon" | "conofta", MenuGroup[]> = {
     {
       label: "Operacional",
       items: [
-        { to: "/conofta/waitlist", icon: ClipboardCheck, label: "Ficha de Ingreso",       roles: ["gerente", "admin_conofta", "coordinador_local"] },
-        { to: "/conofta/lista",    icon: Users,          label: "Lista General",         roles: ["gerente", "admin_conofta", "coordinador_local"] },
-        { to: "/conofta/reportes", icon: FileDown,        label: "Reportes Operativos",  roles: ["gerente", "admin_conofta", "coordinador_local"] },
+        { to: "/conofta/waitlist", icon: ClipboardCheck, label: "Ficha de Ingreso", roles: ["gerente", "admin_conofta", "coordinador_local"] },
+        { to: "/conofta/lista", icon: Users, label: "Lista General", roles: ["gerente", "admin_conofta", "coordinador_local"] },
+        { to: "/conofta/reportes", icon: FileDown, label: "Reportes Operativos", roles: ["gerente", "admin_conofta", "coordinador_local"] },
       ],
     },
     {
@@ -105,38 +79,37 @@ const menuGroups: Record<"alcon" | "conofta", MenuGroup[]> = {
       label: "Sistema",
       roles: ["gerente"],
       items: [
-        { to: "/usuarios",  icon: UserCog, label: "Gestión de Usuarios", roles: ["gerente"] },
-        { to: "/auditoria", icon: Shield,   label: "Auditoría Clínica",  roles: ["gerente"] },
+        { to: "/usuarios", icon: UserCog, label: "Gestión de Usuarios", roles: ["gerente"] },
+        { to: "/auditoria", icon: Shield, label: "Auditoría Clínica", roles: ["gerente"] },
       ],
     },
-  ]
+  ],
 };
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const { role } = useUserRole();
 
-  // Determine which module this role can access
   const roleIsAlconOnly  = role !== null && ALCON_ROLES.includes(role as AppRole);
   const roleIsConoftaOnly = role !== null && CONOFTA_ROLES.includes(role as AppRole);
-  const roleIsGerente    = role === "gerente";
 
-  // Auto-set active module based on role
-  const defaultModule: "alcon" | "conofta" =
-    roleIsConoftaOnly ? "conofta" : "alcon";
-
+  const defaultModule: "alcon" | "conofta" = roleIsConoftaOnly ? "conofta" : "alcon";
   const [activeModule, setActiveModule] = useState<"alcon" | "conofta">(defaultModule);
 
-  // Sync module when role loads
   useEffect(() => {
     if (roleIsConoftaOnly) setActiveModule("conofta");
   }, [roleIsConoftaOnly]);
 
+  // Close mobile drawer on route change
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname]);
+
   const handleModuleChange = (module: "alcon" | "conofta") => {
-    // Alcon-only roles cannot switch to CONOFTA and vice versa
     if (roleIsAlconOnly && module === "conofta") return;
     if (roleIsConoftaOnly && module === "alcon") return;
     setActiveModule(module);
@@ -145,7 +118,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   const roleLabels: Record<string, string> = {
     gerente: "Gerente General",
-    admin_conofta: "Admin Central CONOFTA",
+    admin_conofta: "Admin CONOFTA",
     coordinador_local: "Coordinador Local",
     visitador: "Visitador",
     bodega: "Bodega",
@@ -153,174 +126,280 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   };
 
   const filteredGroups = menuGroups[activeModule]
-    .filter((group) => !group.roles || (role && (group.roles.includes(role as any))))
+    .filter((group) => !group.roles || (role && group.roles.includes(role as any)))
     .map((group) => ({
       ...group,
-      items: group.items.filter((item) => !item.roles || (role && (item.roles.includes(role as any)))),
+      items: group.items.filter((item) => !item.roles || (role && item.roles.includes(role as any))),
     }))
     .filter((group) => group.items.length > 0);
 
-  // Flatten for header title lookup
   const allItems = [...menuGroups.alcon, ...menuGroups.conofta].flatMap((g) => g.items);
+  const currentLabel = allItems.find((i) => i.to === location.pathname)?.label || "Dashboard";
+
+  // Bottom nav items for mobile (most used)
+  const bottomNavItems = filteredGroups.flatMap(g => g.items).slice(0, 4);
+
+  const SidebarContent = () => (
+    <>
+      {/* Logo */}
+      <div className="flex h-16 items-center justify-between border-b border-border px-4 shrink-0">
+        {!collapsed && (
+          <div className="flex items-center gap-2.5 animate-slide-in">
+            <div className="h-8 w-8 flex items-center justify-center shrink-0">
+              <img src="/logo.png" alt="S" className="w-full h-full object-contain" />
+            </div>
+            <div>
+              <h1 className="text-sm font-display font-bold text-foreground tracking-tight">Surgical</h1>
+              <p className="text-[10px] text-muted-foreground">PORTAL <span className="bg-muted rounded px-1 py-0.5 text-[8px]">v1.0</span></p>
+            </div>
+          </div>
+        )}
+        {collapsed && (
+          <div className="mx-auto h-8 w-8 flex items-center justify-center">
+            <img src="/logo.png" alt="S" className="w-full h-full object-contain" />
+          </div>
+        )}
+        {/* Mobile close button */}
+        <button
+          onClick={() => setMobileOpen(false)}
+          className="md:hidden ml-auto text-muted-foreground hover:text-foreground p-1"
+        >
+          <X className="h-5 w-5" />
+        </button>
+      </div>
+
+      {/* Module Switcher */}
+      {!collapsed && !roleIsAlconOnly && !roleIsConoftaOnly && (
+        <div className="px-4 py-3 flex gap-2 shrink-0">
+          <button
+            onClick={() => handleModuleChange("alcon")}
+            className={cn(
+              "flex-1 py-2.5 text-[10px] font-bold rounded-xl transition-all",
+              activeModule === "alcon"
+                ? "bg-primary text-secondary-foreground shadow-lg shadow-primary/20"
+                : "bg-muted text-muted-foreground hover:bg-muted/80"
+            )}
+          >ALCON</button>
+          <button
+            onClick={() => handleModuleChange("conofta")}
+            className={cn(
+              "flex-1 py-2.5 text-[10px] font-bold rounded-xl transition-all",
+              activeModule === "conofta"
+                ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20"
+                : "bg-muted text-muted-foreground hover:bg-muted/80"
+            )}
+          >CONOFTA</button>
+        </div>
+      )}
+      {!collapsed && (roleIsAlconOnly || roleIsConoftaOnly) && (
+        <div className="px-4 py-3 shrink-0">
+          <div className={cn(
+            "rounded-xl py-1.5 text-center text-[10px] font-bold uppercase tracking-widest",
+            roleIsConoftaOnly ? "bg-blue-600/20 text-blue-400" : "bg-primary/10 text-primary"
+          )}>
+            {roleIsConoftaOnly ? "CONOFTA" : "ALCON"}
+          </div>
+        </div>
+      )}
+
+      {/* Navigation */}
+      <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-5">
+        {filteredGroups.map((group) => (
+          <div key={group.label}>
+            {!collapsed && (
+              <p className="px-3 mb-2 text-[9px] font-black uppercase tracking-[0.15em] text-muted-foreground/60">
+                {group.label}
+              </p>
+            )}
+            <ul className="space-y-0.5">
+              {group.items.map((item) => (
+                <li key={item.to}>
+                  <NavLink
+                    to={item.to}
+                    end={item.to === "/"}
+                    className={({ isActive }) =>
+                      cn(
+                        "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 relative overflow-hidden group",
+                        isActive
+                          ? "bg-sidebar-accent text-primary"
+                          : "text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
+                      )
+                    }
+                  >
+                    {({ isActive }) => (
+                      <>
+                        {isActive && (
+                          <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 bg-primary rounded-r-full" />
+                        )}
+                        <item.icon className={cn("h-4 w-4 shrink-0 transition-colors", isActive && "text-primary")} />
+                        {!collapsed && <span className="truncate">{item.label}</span>}
+                      </>
+                    )}
+                  </NavLink>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </nav>
+
+      {/* User + Controls */}
+      <div className="border-t border-border p-3 space-y-2 shrink-0">
+        {!collapsed && (
+          <div className="flex items-center gap-2.5 px-2 mb-2">
+            <div className="h-8 w-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+              <span className="text-xs font-bold text-primary">
+                {user?.user_metadata?.full_name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || "U"}
+              </span>
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-foreground truncate">{user?.user_metadata?.full_name || "Usuario"}</p>
+              <p className="text-[10px] text-primary font-medium">{role ? roleLabels[role] || role : "Sin rol"}</p>
+            </div>
+          </div>
+        )}
+        <div className="flex gap-1">
+          {/* Collapse toggle — desktop only */}
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            className="hidden md:flex flex-1 items-center justify-center rounded-xl py-2 text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+          >
+            {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+          </button>
+          <button
+            onClick={signOut}
+            className="flex flex-1 md:flex-none items-center justify-center rounded-xl py-2 px-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+            title="Cerrar Sesión"
+          >
+            <LogOut className="h-4 w-4" />
+            {!collapsed && <span className="ml-2 text-xs md:hidden">Salir</span>}
+          </button>
+        </div>
+      </div>
+    </>
+  );
 
   return (
     <div className="flex min-h-screen bg-background">
-      {/* Sidebar */}
+
+      {/* ─── DESKTOP SIDEBAR ─── */}
       <aside
         className={cn(
-          "fixed left-0 top-0 z-40 h-screen border-r border-border bg-sidebar flex flex-col transition-all duration-300",
+          "fixed left-0 top-0 z-40 h-screen border-r border-border bg-sidebar flex-col transition-all duration-300",
+          "hidden md:flex",
           collapsed ? "w-[68px]" : "w-[260px]"
         )}
       >
-        {/* Logo */}
-        <div className="flex h-16 items-center justify-between border-b border-border px-4">
-          {!collapsed && (
-            <div className="flex items-center gap-2 animate-slide-in">
-              <div className="h-8 w-8 flex items-center justify-center">
-                <img src="/logo.png" alt="S" className="w-full h-full object-contain" />
-              </div>
-              <div>
-                <h1 className="text-sm font-display font-bold text-foreground">Surgical</h1>
-                <p className="text-[10px] text-muted-foreground">PORTAL <span className="bg-muted rounded px-1 py-0.5 text-[8px]">v1.0</span></p>
-              </div>
-            </div>
-          )}
-          {collapsed && (
-            <div className="mx-auto h-8 w-8 flex items-center justify-center">
-              <img src="/logo.png" alt="S" className="w-full h-full object-contain" />
-            </div>
-          )}
-        </div>
-
-        {/* Module Switcher — only show for gerente and roles that have access to both */}
-        {!collapsed && !roleIsAlconOnly && !roleIsConoftaOnly && (
-          <div className="px-4 py-4 flex gap-2">
-            <button 
-              onClick={() => handleModuleChange("alcon")}
-              className={cn(
-                "flex-1 py-2 text-[10px] font-bold rounded-md transition-all",
-                activeModule === "alcon" ? "bg-primary text-secondary-foreground shadow-lg" : "bg-muted text-muted-foreground hover:bg-muted/80"
-              )}
-            >
-              ALCON
-            </button>
-            <button 
-              onClick={() => handleModuleChange("conofta")}
-              className={cn(
-                "flex-1 py-2 text-[10px] font-bold rounded-md transition-all",
-                activeModule === "conofta" ? "bg-blue-600 text-white shadow-lg" : "bg-muted text-muted-foreground hover:bg-muted/80"
-              )}
-            >
-              CONOFTA
-            </button>
-          </div>
-        )}
-        {/* Role badge for single-world roles */}
-        {!collapsed && (roleIsAlconOnly || roleIsConoftaOnly) && (
-          <div className="px-4 py-3">
-            <div className={cn(
-              "rounded-lg py-1.5 text-center text-[10px] font-bold uppercase tracking-widest",
-              roleIsConoftaOnly ? "bg-blue-600/20 text-blue-400" : "bg-primary/10 text-primary"
-            )}>
-              {roleIsConoftaOnly ? "CONOFTA" : "ALCON"}
-            </div>
-          </div>
-        )}
-
-        {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-6">
-          {filteredGroups.map((group) => (
-            <div key={group.label}>
-              {!collapsed && (
-                <p className="px-3 mb-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                  {group.label}
-                </p>
-              )}
-              <ul className="space-y-1">
-                {group.items.map((item) => (
-                  <li key={item.to}>
-                    <NavLink
-                      to={item.to}
-                      end={item.to === "/"}
-                      className={({ isActive }) =>
-                        cn(
-                          "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
-                          isActive
-                            ? "bg-sidebar-accent text-primary gold-glow"
-                            : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                        )
-                      }
-                    >
-                      <item.icon className="h-4 w-4 shrink-0" />
-                      {!collapsed && <span>{item.label}</span>}
-                    </NavLink>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </nav>
-
-        {/* User + Collapse */}
-        <div className="border-t border-border p-3 space-y-2">
-          {!collapsed && (
-            <div className="flex items-center gap-2 px-2 mb-2">
-              <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center shrink-0">
-                <span className="text-xs font-bold text-foreground">
-                  {user?.user_metadata?.full_name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || "U"}
-                </span>
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs font-medium text-foreground truncate">{user?.user_metadata?.full_name || "Usuario"}</p>
-                <p className="text-[10px] text-primary font-medium">{role ? roleLabels[role] || role : "Sin rol"}</p>
-              </div>
-            </div>
-          )}
-          <div className="flex gap-1">
-            <button
-              onClick={() => setCollapsed(!collapsed)}
-              className="flex flex-1 items-center justify-center rounded-lg py-2 text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
-            >
-              {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-            </button>
-            <button
-              onClick={signOut}
-              className="flex items-center justify-center rounded-lg py-2 px-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
-              title="Cerrar Sesión"
-            >
-              <LogOut className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
+        <SidebarContent />
       </aside>
 
-      {/* Main content */}
-      <main
+      {/* ─── MOBILE DRAWER OVERLAY ─── */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm md:hidden"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+      {/* Mobile Sidebar Drawer */}
+      <aside
         className={cn(
-          "flex-1 transition-all duration-300 flex flex-col h-screen",
-          collapsed ? "ml-[68px]" : "ml-[260px]"
+          "fixed left-0 top-0 z-50 h-screen w-[280px] border-r border-border bg-sidebar flex flex-col transition-transform duration-300 md:hidden",
+          mobileOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
-        {/* Top bar */}
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-background/80 backdrop-blur-lg px-6">
-          <div>
-            <h2 className="text-lg font-display font-semibold text-foreground">
-              {allItems.find((i) => i.to === location.pathname)?.label || "Dashboard"}
+        <SidebarContent />
+      </aside>
+
+      {/* ─── MAIN CONTENT ─── */}
+      <main
+        className={cn(
+          "flex-1 flex flex-col h-screen transition-all duration-300",
+          "ml-0 md:ml-[260px]",
+          collapsed && "md:ml-[68px]"
+        )}
+      >
+        {/* Top Header */}
+        <header className="sticky top-0 z-30 flex h-14 md:h-16 items-center justify-between border-b border-border bg-background/90 backdrop-blur-lg px-4 md:px-6 shrink-0">
+          {/* Mobile: hamburger + page title */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setMobileOpen(true)}
+              className="md:hidden p-2 -ml-2 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            <h2 className="text-base md:text-lg font-display font-semibold text-foreground truncate">
+              {currentLabel}
             </h2>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="text-right">
-              <p className="text-sm font-medium text-foreground">{user?.user_metadata?.full_name || "Usuario"}</p>
-              <p className="text-xs text-muted-foreground">{role ? roleLabels[role] || role : ""} · {user?.email}</p>
+
+          {/* Right: user info */}
+          <div className="flex items-center gap-2 md:gap-4">
+            <div className="hidden sm:block text-right">
+              <p className="text-sm font-medium text-foreground leading-tight">
+                {user?.user_metadata?.full_name?.split(" ")[0] || "Usuario"}
+              </p>
+              <p className="text-[10px] text-muted-foreground">
+                {role ? roleLabels[role] || role : ""}
+              </p>
             </div>
-            <div className="h-9 w-9 flex items-center justify-center">
-              <img src="/logo.png" alt="S" className="w-full h-full object-contain" />
+            <div className="h-8 w-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+              <span className="text-xs font-bold text-primary">
+                {user?.user_metadata?.full_name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || "U"}
+              </span>
             </div>
           </div>
         </header>
 
-        {/* Page content */}
-        <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-blue-500/20">{children}</div>
+        {/* Page Content */}
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 pb-20 md:pb-6">
+          {children}
+        </div>
+
+        {/* ─── MOBILE BOTTOM NAV ─── */}
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-sidebar/95 backdrop-blur-lg">
+          <div className="flex items-center justify-around px-2 py-1 safe-area-inset-bottom">
+            {bottomNavItems.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.to === "/"}
+                className={({ isActive }) =>
+                  cn(
+                    "flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all min-w-[60px]",
+                    isActive
+                      ? "text-primary"
+                      : "text-muted-foreground"
+                  )
+                }
+              >
+                {({ isActive }) => (
+                  <>
+                    <div className={cn(
+                      "p-1.5 rounded-lg transition-all",
+                      isActive ? "bg-primary/10" : ""
+                    )}>
+                      <item.icon className="h-5 w-5" />
+                    </div>
+                    <span className="text-[9px] font-semibold truncate max-w-[64px] text-center leading-tight">
+                      {item.label.split(" ")[0]}
+                    </span>
+                  </>
+                )}
+              </NavLink>
+            ))}
+            {/* More / Menu button */}
+            <button
+              onClick={() => setMobileOpen(true)}
+              className="flex flex-col items-center gap-1 px-3 py-2 rounded-xl text-muted-foreground transition-all min-w-[60px]"
+            >
+              <div className="p-1.5 rounded-lg">
+                <Menu className="h-5 w-5" />
+              </div>
+              <span className="text-[9px] font-semibold">Más</span>
+            </button>
+          </div>
+        </nav>
       </main>
     </div>
   );
