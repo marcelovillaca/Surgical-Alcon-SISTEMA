@@ -96,26 +96,27 @@ function ProtectedRoutes() {
   const { user, loading } = useAuth();
   const { isBlocked, loading: roleLoading } = useUserRole();
 
-  // ── Recovery token detection (fixes HashRouter + Supabase password reset) ──
-  // Supabase sends: /#access_token=X&refresh_token=Y&type=recovery
-  // HashRouter sees this as route "/" with search params. We detect and redirect.
-  useEffect(() => {
-    const hash = window.location.hash;
-    // Check if the URL fragment (after #) contains Supabase recovery tokens
-    // This happens when HashRouter is used: the full URL is
-    // https://app.com/#access_token=X&type=recovery  (no /auth prefix)
-    if (hash.includes("type=recovery") && hash.includes("access_token")) {
-      // Parse tokens from the hash string
-      const paramStr = hash.replace(/^#\/?/, "").replace(/^\/.*?\?/, "");
-      const params = new URLSearchParams(paramStr);
-      const access_token = params.get("access_token") || "";
-      const refresh_token = params.get("refresh_token") || "";
-      // Replace hash with /auth route, passing tokens as query params
-      window.location.replace(
-        `${window.location.origin}${window.location.pathname}#/auth?type=recovery&access_token=${access_token}&refresh_token=${refresh_token}`
-      );
-    }
-  }, []);
+  // ── SYNCHRONOUS recovery token check ──────────────────────────────────────
+  // MUST be synchronous (not useEffect) because the !user check below would
+  // redirect to /auth before the effect ever runs.
+  // Supabase sends the user back to: https://app.vercel.app/#access_token=X&type=recovery
+  // HashRouter parses "#access_token=X&type=recovery" as the path — which hits this route.
+  const rawHash = window.location.hash; // e.g. "#access_token=X&refresh_token=Y&type=recovery"
+  const hashWithoutLeading = rawHash.replace(/^#/, "");
+  const hashParams = new URLSearchParams(hashWithoutLeading);
+  const isRecoveryFlow =
+    hashParams.get("type") === "recovery" && !!hashParams.get("access_token");
+
+  if (isRecoveryFlow) {
+    const access_token = hashParams.get("access_token") || "";
+    const refresh_token = hashParams.get("refresh_token") || "";
+    // Redirect to /auth with tokens as proper query params (HashRouter friendly)
+    window.location.replace(
+      `${window.location.origin}${window.location.pathname}#/auth?type=recovery&access_token=${encodeURIComponent(access_token)}&refresh_token=${encodeURIComponent(refresh_token)}`
+    );
+    return <PageLoader />;
+  }
+  // ──────────────────────────────────────────────────────────────────────────
 
   if (loading || roleLoading) return <PageLoader />;
   if (!user) return <Navigate to="/auth" replace />;
