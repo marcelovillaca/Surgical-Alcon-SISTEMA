@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
-import { UserPlus, Copy, Check, Clock, Users, ShieldX, UserMinus, Shield, Lock, Unlock, Trash2, RefreshCw, MailCheck } from "lucide-react";
+import { UserPlus, Copy, Check, Clock, Users, Shield, Lock, Unlock, Trash2, RefreshCw, Loader2, UserCheck, ShieldAlert, Edit, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
@@ -44,18 +44,43 @@ export default function InviteUsers() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [activeTab, setActiveTab] = useState<"invitations" | "active">("invitations");
+  const [activeTab, setActiveTab] = useState<"invitations" | "active" | "pending">("invitations");
   const [activeUsers, setActiveUsers] = useState<any[]>([]);
+  const [pendingUsers, setPendingUsers] = useState<any[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
   const [institutions, setInstitutions] = useState<any[]>([]);
   const { toast } = useToast();
 
   const fetchUsers = async () => {
     try {
-      const { data: rolesData } = await supabase.from("user_roles").select("*, profiles:user_id(full_name, created_at)");
+      // Fetch users WITH roles
+      const { data: rolesData, error: rolesError } = await supabase
+        .from("user_roles")
+        .select("*, profiles:user_id(full_name, email, created_at)");
+      
+      if (rolesError) throw rolesError;
       if (rolesData) setActiveUsers(rolesData);
+
+      // Fetch users WITHOUT roles (from public.profiles that are not in user_roles)
+      const { data: profilesData, error: profilesError } = await supabase
+        .from("profiles")
+        .select("*")
+        .order("created_at", { ascending: false });
+      
+      if (profilesError) throw profilesError;
+
+      if (profilesData && rolesData) {
+        const activeIds = new Set(rolesData.map(r => r.user_id));
+        const pending = profilesData.filter(p => !activeIds.has(p.id));
+        setPendingUsers(pending);
+      }
+      
       const { data: instData } = await supabase.from("institutions").select("id, name");
       if (instData) setInstitutions(instData);
-    } catch (e) { console.error(e); }
+    } catch (e: any) { 
+      console.error(e); 
+      toast({ title: "Error cargando usuarios", description: e.message, variant: "destructive" });
+    }
   };
 
   const fetchInvitations = async () => {
@@ -161,8 +186,36 @@ export default function InviteUsers() {
     }
   };
 
+  const handleAssignRole = async (userId: string, targetRole: string) => {
+    if (!targetRole) return;
+    const { error } = await supabase.from("user_roles").insert({
+      user_id: userId,
+      role: targetRole as any,
+      is_blocked: false
+    });
+    if (!error) {
+      toast({ title: "Acceso Concedido", description: "El usuario ya pode entrar al sistema." });
+      fetchUsers();
+    } else {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  };
+
+  const handleUpdateProfile = async (userId: string, fullName: string) => {
+    const { error } = await supabase.from("profiles").update({ full_name: fullName }).eq("id", userId);
+    if (!error) {
+      toast({ title: "Perfil actualizado" });
+      fetchUsers();
+    }
+  };
+
   if (roleLoading) {
-    return <div className="flex items-center justify-center py-20"><div className="h-8 w-8 bg-blue-500 animate-pulse rounded-full" /></div>;
+    return (
+      <div className="flex flex-col items-center justify-center py-32 gap-4">
+        <Loader2 className="h-8 w-8 text-primary animate-spin" />
+        <p className="text-sm text-muted-foreground animate-pulse">Verificando credenciales...</p>
+      </div>
+    );
   }
 
   return (
@@ -176,7 +229,11 @@ export default function InviteUsers() {
         </div>
         <div className="flex bg-muted/50 p-1 rounded-xl border border-border">
           <button onClick={() => setActiveTab("invitations")} className={cn("px-4 py-2 text-xs font-bold rounded-lg transition-all", activeTab === "invitations" ? "bg-blue-600 text-white shadow-md" : "text-muted-foreground")}>Invitaciones</button>
-          <button onClick={() => setActiveTab("active")} className={cn("px-4 py-2 text-xs font-bold rounded-lg transition-all", activeTab === "active" ? "bg-blue-600 text-white shadow-md" : "text-muted-foreground")}>Usuarios Activos</button>
+          <button onClick={() => setActiveTab("pending")} className={cn("px-4 py-2 text-xs font-bold rounded-lg transition-all relative", activeTab === "pending" ? "bg-amber-600 text-white shadow-md" : "text-muted-foreground")}>
+            Pendientes
+            {pendingUsers.length > 0 && <span className="absolute -top-1 -right-1 h-4 w-4 bg-rose-500 text-[10px] flex items-center justify-center rounded-full border-2 border-background text-white">{pendingUsers.length}</span>}
+          </button>
+          <button onClick={() => setActiveTab("active")} className={cn("px-4 py-2 text-xs font-bold rounded-lg transition-all", activeTab === "active" ? "bg-blue-600 text-white shadow-md" : "text-muted-foreground")}>Activos</button>
         </div>
       </div>
 
@@ -267,37 +324,116 @@ export default function InviteUsers() {
             </div>
           </div>
         </div>
-      ) : (
-        <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-lg">
-           <div className="px-6 py-4 bg-muted/30 border-b border-border font-bold text-sm flex items-center gap-2">
-             <Shield className="h-4 w-4 text-blue-500" /> Usuarios del Sistema
+      ) : activeTab === "pending" ? (
+        <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-lg animate-in slide-in-from-bottom-2 duration-300">
+           <div className="px-6 py-4 bg-amber-500/10 border-b border-amber-500/20 font-bold text-sm flex items-center justify-between">
+             <div className="flex items-center gap-2 text-amber-600">
+               <ShieldAlert className="h-4 w-4" /> Aprobaciones Pendientes
+             </div>
+             <span className="text-[10px] bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full uppercase">Registrados sin Acceso</span>
            </div>
            <div className="divide-y divide-border">
-             {activeUsers.length === 0 && <div className="p-12 text-center text-muted-foreground italic">Cargando...</div>}
-             {activeUsers.map(u => (
-               <div key={u.user_id} className="p-4 flex items-center justify-between hover:bg-muted/5">
+             {pendingUsers.length === 0 && (
+               <div className="p-12 text-center text-muted-foreground italic flex flex-col items-center gap-3">
+                 <UserCheck className="h-10 w-10 opacity-20" />
+                 <p className="text-sm">No hay usuarios pendientes de activación.</p>
+               </div>
+             )}
+             {pendingUsers.map(u => (
+               <div key={u.id} className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-muted/5 transition-colors">
                  <div className="flex items-center gap-3">
-                    <div className={cn("h-10 w-10 rounded-xl flex items-center justify-center font-bold text-white", u.is_blocked ? "bg-red-500" : "bg-blue-600 shadow-md")}>{(u.profiles?.[0]?.full_name || "U")[0].toUpperCase()}</div>
+                    <div className="h-10 w-10 rounded-xl bg-muted flex items-center justify-center font-bold text-muted-foreground">
+                      {(u.full_name || "U")[0].toUpperCase()}
+                    </div>
                     <div>
-                      <p className="text-sm font-bold">{u.profiles?.[0]?.full_name || "Sin nombre"}</p>
-                      <p className="text-[10px] text-muted-foreground">{u.role} · {u.user_id === user?.id ? '(Tu)' : ''}</p>
+                      <input 
+                        type="text" 
+                        defaultValue={u.full_name || "Ingrese nombre..."} 
+                        onBlur={(e) => handleUpdateProfile(u.id, e.target.value)}
+                        className="text-sm font-bold bg-transparent border-b border-transparent hover:border-border outline-none focus:border-primary transition-all px-1"
+                      />
+                      <p className="text-[10px] text-muted-foreground ml-1">{u.email}</p>
+                    </div>
+                 </div>
+                 <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase mr-2 italic">Asignar Rol:</span>
+                    <div className="flex flex-wrap gap-1">
+                      {ROLES.slice(1).map(r => ( // skip gerente for safety
+                        <button 
+                          key={r.value}
+                          onClick={() => handleAssignRole(u.id, r.value)}
+                          className="px-3 py-1.5 rounded-lg border border-border text-[10px] font-bold hover:bg-emerald-500 hover:text-white hover:border-emerald-500 transition-all"
+                        >
+                          {r.label}
+                        </button>
+                      ))}
+                    </div>
+                 </div>
+               </div>
+             ))}
+           </div>
+        </div>
+      ) : activeTab === "active" ? (
+        <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-lg animate-in slide-in-from-bottom-2 duration-300">
+           <div className="px-6 py-4 bg-muted/30 border-b border-border font-bold text-sm flex items-center gap-2 text-foreground">
+             <Shield className="h-4 w-4 text-emerald-500" /> Usuarios con Acceso Activo
+           </div>
+           <div className="divide-y divide-border">
+             {activeUsers.length === 0 && <div className="p-12 text-center text-muted-foreground italic">No hay usuarios activos registrados.</div>}
+             {activeUsers.map(u => (
+               <div key={u.user_id} className="p-4 flex items-center justify-between hover:bg-muted/5 transition-all">
+                 <div className="flex items-center gap-3">
+                    <div className={cn("h-10 w-10 rounded-xl flex items-center justify-center font-bold text-white shadow-sm", u.is_blocked ? "bg-rose-500" : "bg-emerald-600")}>
+                      {(u.profiles?.[0]?.full_name || "U")[0].toUpperCase()}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <input 
+                          type="text" 
+                          defaultValue={u.profiles?.[0]?.full_name || "Sin nombre"} 
+                          onBlur={(e) => handleUpdateProfile(u.user_id, e.target.value)}
+                          className="text-sm font-bold bg-transparent border-b border-transparent hover:border-border outline-none focus:border-primary px-1"
+                        />
+                        {u.is_blocked && <span className="text-[8px] bg-rose-500 text-white px-1.5 py-0.5 rounded-full uppercase font-black">Bloqueado</span>}
+                      </div>
+                      <p className="text-[10px] text-muted-foreground ml-1">
+                        {u.profiles?.[0]?.email} · {u.user_id === user?.id ? '<Eres tú>' : u.role}
+                      </p>
                     </div>
                  </div>
                  <div className="flex gap-2">
-                   <select value={u.role} onChange={(e) => handleChangeRole(u.user_id, e.target.value)} className="text-[10px] font-bold bg-background border border-border rounded-lg px-2 py-1.5">
+                   <select 
+                     value={u.role} 
+                     onChange={(e) => handleChangeRole(u.user_id, e.target.value)} 
+                     className="text-[10px] font-bold bg-background border border-border rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-primary outline-none"
+                     disabled={u.user_id === user?.id}
+                   >
                       {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
                    </select>
                    {u.user_id !== user?.id && (
-                     <button onClick={() => handleToggleBlock(u.user_id, u.is_blocked)} className={cn("p-2 rounded-lg", u.is_blocked ? "text-red-500 bg-red-500/10" : "text-muted-foreground hover:bg-muted")}>
-                        {u.is_blocked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
-                     </button>
+                     <div className="flex gap-1">
+                       <button 
+                         onClick={() => handleToggleBlock(u.user_id, u.is_blocked)} 
+                         className={cn("p-2 rounded-lg transition-colors", u.is_blocked ? "text-emerald-500 bg-emerald-500/10" : "text-rose-500 bg-rose-500/10")}
+                         title={u.is_blocked ? "Desbloquear" : "Bloquear"}
+                       >
+                          {u.is_blocked ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+                       </button>
+                       <button 
+                         onClick={() => handleRemoveRole(u.user_id)} 
+                         className="p-2 rounded-lg text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
+                         title="Revocar acceso"
+                       >
+                          <Trash2 className="h-4 w-4" />
+                       </button>
+                     </div>
                    )}
                  </div>
                </div>
              ))}
            </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

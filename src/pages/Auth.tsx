@@ -167,7 +167,12 @@ export default function Auth() {
     });
 
     if (signUpError) {
-      setMessage("✅ Si los datos son válidos, recibirás un correo de activación.");
+      console.error("SignUp Error:", signUpError);
+      setError(
+        signUpError.message.includes("Rate limit") 
+          ? "Límite de correos excedido. Intenta de nuevo en 1 hora o contacta al administrador."
+          : signUpError.message
+      );
       setLoading(false);
       return;
     }
