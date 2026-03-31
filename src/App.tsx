@@ -86,9 +86,19 @@ function SmartDashboard() {
   const { role, loading } = useUserRole();
 
   if (loading) return <PageLoader />;
-  // No role assigned — show pending screen instead of dashboard
   if (!role) return <PendingAccount />;
+  
+  // Specific views per role
   if (role === "visitador") return <VisitadorDashboard />;
+  if (role === "admin_conofta" || role === "coordinador_local") {
+     return (
+       <Suspense fallback={<PageLoader />}>
+         <Conofta />
+       </Suspense>
+     );
+  }
+  
+  // Default for Gerente/Admin
   return <Index />;
 }
 

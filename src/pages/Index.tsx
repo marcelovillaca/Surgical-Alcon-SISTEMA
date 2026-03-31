@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import KpiCard from "@/components/dashboard/KpiCard";
 import { SalesBarChart, ProductMixChart, TopProductMarginList } from "@/components/dashboard/DashboardCharts";
 import { RankingCard } from "@/components/dashboard/TopRankings";
@@ -14,7 +15,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatUSD, formatPct } from "@/lib/formatters";
 
 const Dashboard = () => {
-  const { isGerente } = useUserRole();
+  const { isGerente, isAdminConofta, isCoordinadorLocal } = useUserRole();
+  const navigate = useNavigate();
   const [filters, setFilters] = useState<Filters>({
     year: new Date().getFullYear().toString(),
     months: ["Todos"],
@@ -23,6 +25,15 @@ const Dashboard = () => {
   });
   const [includePublic, setIncludePublic] = useState(false);
   const { data, loading } = useDashboardData(filters, includePublic);
+
+  // SEGURANÇA: Se for Admin/Coord CONOFTA, não pode estar aqui. Redirecionar.
+  useEffect(() => {
+    if ((isAdminConofta || isCoordinadorLocal) && !isGerente) {
+      navigate("/conofta");
+    }
+  }, [isAdminConofta, isCoordinadorLocal, isGerente, navigate]);
+
+  if ((isAdminConofta || isCoordinadorLocal) && !isGerente) return null;
 
   return (
     <div className="space-y-6 animate-slide-in">

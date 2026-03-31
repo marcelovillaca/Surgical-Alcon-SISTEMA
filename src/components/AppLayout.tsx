@@ -18,8 +18,7 @@ const menuGroups: Record<"alcon" | "conofta", MenuGroup[]> = {
     {
       label: "Inicio",
       items: [
-        { to: "/", icon: BarChart3, label: "Mi Dashboard", roles: ["visitador"] },
-        { to: "/", icon: LayoutDashboard, label: "Dashboard", roles: ["gerente", "bodega", "expedicion"] },
+        { to: "/", icon: BarChart3, label: "Dashboard de Ventas", roles: ["visitador", "gerente", "bodega", "expedicion"] },
       ],
     },
     {
@@ -63,9 +62,9 @@ const menuGroups: Record<"alcon" | "conofta", MenuGroup[]> = {
     },
     {
       label: "Inteligencia",
-      roles: ["gerente"],
+      roles: ["gerente", "admin_conofta", "coordinador_local"],
       items: [
-        { to: "/conofta", icon: BarChart2, label: "KPIs y P&L", roles: ["gerente"] },
+        { to: "/conofta", icon: BarChart2, label: "Centro de Comando", roles: ["gerente", "admin_conofta", "coordinador_local"] },
       ],
     },
     {
@@ -77,9 +76,9 @@ const menuGroups: Record<"alcon" | "conofta", MenuGroup[]> = {
     },
     {
       label: "Sistema",
-      roles: ["gerente"],
+      roles: ["gerente", "admin_conofta"],
       items: [
-        { to: "/usuarios", icon: UserCog, label: "Gestión de Usuarios", roles: ["gerente"] },
+        { to: "/usuarios", icon: UserCog, label: "Gestión de Usuarios", roles: ["gerente", "admin_conofta"] },
         { to: "/auditoria", icon: Shield, label: "Auditoría Clínica", roles: ["gerente"] },
       ],
     },
