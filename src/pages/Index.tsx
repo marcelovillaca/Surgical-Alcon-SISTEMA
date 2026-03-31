@@ -27,13 +27,15 @@ const Dashboard = () => {
   const { data, loading } = useDashboardData(filters, includePublic);
 
   // SEGURANÇA: Se for Admin/Coord CONOFTA, não pode estar aqui. Redirecionar.
+  if ((isAdminConofta || isCoordinadorLocal) && !isGerente) {
+     return <div className="p-20 text-center animate-pulse text-muted-foreground">Redirigindo al Centro de Comando...</div>;
+  }
+
   useEffect(() => {
     if ((isAdminConofta || isCoordinadorLocal) && !isGerente) {
       navigate("/conofta");
     }
   }, [isAdminConofta, isCoordinadorLocal, isGerente, navigate]);
-
-  if ((isAdminConofta || isCoordinadorLocal) && !isGerente) return null;
 
   return (
     <div className="space-y-6 animate-slide-in">

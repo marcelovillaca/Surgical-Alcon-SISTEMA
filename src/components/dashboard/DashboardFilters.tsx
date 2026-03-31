@@ -99,11 +99,11 @@ export default function DashboardFilters({ isGerente, onFiltersChange, hideVende
       <div className="flex items-center justify-between">
         {!hideTitle && (
           <div>
-            <h1 className="text-2xl font-display font-bold text-foreground">
-              {isGerente ? "Análisis de Ventas" : "Mi Dashboard"}
+            <h1 className="text-2xl font-display font-bold text-foreground tracking-tight">
+              {isGerente ? "Análisis de Ventas" : "Dashboard de Ventas"}
             </h1>
             <p className="text-sm text-muted-foreground">
-              {isGerente ? "Vista consolidada" : "Resumen de tu actividad"} · {selectedYear}
+              {isGerente ? "Vista consolidada" : "Información comercial"} · {selectedYear}
             </p>
           </div>
         )}
