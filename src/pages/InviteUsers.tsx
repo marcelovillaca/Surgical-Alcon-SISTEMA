@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
-import { UserPlus, Copy, Check, Clock, Users, ShieldX, UserMinus, Shield, Lock, Unlock } from "lucide-react";
+import { UserPlus, Copy, Check, Clock, Users, ShieldX, UserMinus, Shield, Lock, Unlock, Trash2, RefreshCw, MailCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
@@ -150,6 +150,17 @@ export default function InviteUsers() {
     fetchUsers();
   };
 
+  const cancelInvitation = async (id: string, email: string) => {
+    if (!confirm(`¿Cancelar la invitación para ${email}? Esta acción no se puede deshacer.`)) return;
+    const { error } = await supabase.from("user_invitations").delete().eq("id", id);
+    if (!error) {
+      toast({ title: "Invitación cancelada", description: `La invitación para ${email} fue eliminada.` });
+      fetchInvitations();
+    } else {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  };
+
   if (roleLoading) {
     return <div className="flex items-center justify-center py-20"><div className="h-8 w-8 bg-blue-500 animate-pulse rounded-full" /></div>;
   }
@@ -199,27 +210,60 @@ export default function InviteUsers() {
             </div>
             <div className="divide-y divide-border">
               {invitations.length === 0 && <div className="p-12 text-center text-muted-foreground italic text-sm">No hay invitaciones registradas.</div>}
-              {invitations.map(inv => (
-                <div key={inv.id} className="p-4 flex items-center justify-between hover:bg-muted/5 transition-colors">
-                  <div className="flex flex-col gap-1">
-                    <span className="font-bold text-sm">{inv.email}</span>
-                    <div className="flex gap-2 items-center">
-                      <span className="text-[9px] uppercase font-black px-2 py-0.5 border border-blue-500/30 text-blue-500 rounded">{inv.role}</span>
-                      <span className={cn("text-[9px] font-bold", inv.used ? "text-green-500" : isExpired(inv.expires_at) ? "text-red-500" : "text-blue-500")}>
-                        {inv.used ? "Canjeado" : isExpired(inv.expires_at) ? "Expirado" : "Pendiente"}
-                      </span>
+              {invitations.map(inv => {
+                const used    = inv.used;
+                const expired = isExpired(inv.expires_at);
+                const pending = !used && !expired;
+                return (
+                  <div key={inv.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-muted/5 transition-colors">
+                    <div className="flex flex-col gap-1 min-w-0">
+                      <span className="font-bold text-sm truncate">{inv.email}</span>
+                      <div className="flex gap-2 items-center flex-wrap">
+                        <span className="text-[9px] uppercase font-black px-2 py-0.5 border border-blue-500/30 text-blue-500 rounded">{inv.role}</span>
+                        <span className={cn(
+                          "text-[9px] font-bold px-2 py-0.5 rounded",
+                          used    ? "bg-emerald-500/10 text-emerald-500" :
+                          expired ? "bg-rose-500/10 text-rose-500" :
+                                    "bg-blue-500/10 text-blue-500"
+                        )}>
+                          {used ? "✓ Canjeado" : expired ? "⏱ Expirado" : "⏳ Pendiente"}
+                        </span>
+                        <span className="text-[9px] text-muted-foreground/60">
+                          {pending ? `Expira: ${new Date(inv.expires_at).toLocaleDateString()}` : ""}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {pending && (
+                        <div className="flex items-center gap-1 bg-muted/30 p-1.5 rounded-lg border border-border">
+                          <code className="text-xs font-black tracking-widest px-2">{inv.invite_code}</code>
+                          <button onClick={() => copyCode(inv.invite_code, inv.id)} className="p-1 hover:text-primary transition-colors" title="Copiar código">
+                            {copiedId === inv.id ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+                          </button>
+                        </div>
+                      )}
+                      {expired && !used && (
+                        <button
+                          onClick={() => regenerateCode(inv.id, inv.email, inv.role)}
+                          className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 transition-colors text-[10px] font-bold"
+                          title="Regenerar código"
+                        >
+                          <RefreshCw className="h-3 w-3" /> Regenerar
+                        </button>
+                      )}
+                      {(pending || expired) && !used && (
+                        <button
+                          onClick={() => cancelInvitation(inv.id, inv.email)}
+                          className="p-2 rounded-lg text-rose-500 hover:bg-rose-500/10 transition-colors"
+                          title="Cancelar invitación"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
                   </div>
-                  {!inv.used && !isExpired(inv.expires_at) && (
-                    <div className="flex items-center gap-2 bg-muted/30 p-1.5 rounded-lg border border-border">
-                      <code className="text-xs font-black tracking-widest px-2">{inv.invite_code}</code>
-                      <button onClick={() => copyCode(inv.invite_code, inv.id)} className="p-1 hover:text-blue-500">
-                        {copiedId === inv.id ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
