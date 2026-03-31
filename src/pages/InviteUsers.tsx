@@ -345,13 +345,16 @@ export default function InviteUsers() {
                     <div className="h-10 w-10 rounded-xl bg-muted flex items-center justify-center font-bold text-muted-foreground">
                       {(u.full_name || "U")[0].toUpperCase()}
                     </div>
-                    <div>
-                      <input 
-                        type="text" 
-                        defaultValue={u.full_name || "Ingrese nombre..."} 
-                        onBlur={(e) => handleUpdateProfile(u.id, e.target.value)}
-                        className="text-sm font-bold bg-transparent border-b border-transparent hover:border-border outline-none focus:border-primary transition-all px-1"
-                      />
+                    <div className="flex flex-col">
+                      <div className="flex items-center gap-1 group">
+                        <input 
+                          type="text" 
+                          defaultValue={u.full_name || "Ingrese nombre..."} 
+                          onBlur={(e) => handleUpdateProfile(u.id, e.target.value)}
+                          className="text-sm font-bold bg-transparent border-b border-transparent hover:border-emerald-500/50 focus:border-emerald-500 outline-none transition-all px-1 min-w-[200px]"
+                        />
+                        <Edit className="h-3 w-3 text-muted-foreground/30 group-hover:text-emerald-500 transition-colors" />
+                      </div>
                       <p className="text-[10px] text-muted-foreground ml-1">{u.email}</p>
                     </div>
                  </div>
@@ -386,14 +389,15 @@ export default function InviteUsers() {
                     <div className={cn("h-10 w-10 rounded-xl flex items-center justify-center font-bold text-white shadow-sm", u.is_blocked ? "bg-rose-500" : "bg-emerald-600")}>
                       {(u.profiles?.[0]?.full_name || "U")[0].toUpperCase()}
                     </div>
-                    <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-col">
+                      <div className="flex items-center gap-2 group">
                         <input 
                           type="text" 
                           defaultValue={u.profiles?.[0]?.full_name || "Sin nombre"} 
                           onBlur={(e) => handleUpdateProfile(u.user_id, e.target.value)}
-                          className="text-sm font-bold bg-transparent border-b border-transparent hover:border-border outline-none focus:border-primary px-1"
+                          className="text-sm font-bold bg-transparent border-b border-transparent hover:border-emerald-500/50 focus:border-emerald-500 outline-none transition-all px-1 min-w-[200px]"
                         />
+                        <Edit className="h-3 w-3 text-muted-foreground/30 group-hover:text-emerald-500 transition-colors" />
                         {u.is_blocked && <span className="text-[8px] bg-rose-500 text-white px-1.5 py-0.5 rounded-full uppercase font-black">Bloqueado</span>}
                       </div>
                       <p className="text-[10px] text-muted-foreground ml-1">
