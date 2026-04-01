@@ -103,7 +103,16 @@ export function useWaitlist(filters?: { sucursal?: string; medico?: string }) {
       }
 
       const { data, error } = await (query.order('created_at', { ascending: false }) as any);
-      if (error) throw error;
+
+      // If table doesn't exist yet, fail silently
+      if (error) {
+        if (error.code === '42P01') {
+          console.warn("[useWaitlist] conofta_waitlist not found — run DB migration.");
+          setEntries([]);
+          return;
+        }
+        throw error;
+      }
 
       let filteredData = data || [];
 
@@ -125,8 +134,8 @@ export function useWaitlist(filters?: { sucursal?: string; medico?: string }) {
 
       setEntries(filteredData);
     } catch (error: any) {
-      console.error("Error fetching waitlist:", error);
-      toast.error("Error al cargar la lista");
+      console.error("[useWaitlist] fetchWaitlist error:", error.message);
+      toast.error("Error al cargar la lista de pacientes");
     } finally {
       setLoading(false);
     }
@@ -139,10 +148,15 @@ export function useWaitlist(filters?: { sucursal?: string; medico?: string }) {
         .select('*')
         .order('date', { ascending: true }) as any);
 
-      if (error) throw error;
+      // Graceful: if table doesn't exist, just leave journeys empty
+      if (error) {
+        if (error.code === '42P01') console.warn("[useWaitlist] conofta_journeys not found.");
+        else console.error("[useWaitlist] fetchJourneys error:", error.message);
+        return;
+      }
       setJourneys(data || []);
     } catch (error: any) {
-      console.error("Error fetching journeys:", error);
+      console.error("[useWaitlist] fetchJourneys unexpected:", error);
     }
   };
 

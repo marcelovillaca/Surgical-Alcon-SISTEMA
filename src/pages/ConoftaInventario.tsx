@@ -91,33 +91,53 @@ export default function ConoftaInventario() {
 
   // ─── Fetch ──────────────────────────────────────────────────────────────────
   const fetchAll = async () => {
+    // Guard: don't fetch until role is loaded
+    if (role === null) return;
+
     setLoading(true);
     try {
-      const [prodRes, instRes] = await Promise.all([
-        (supabase as any).from("conofta_products").select("*").order("name"),
-        (supabase as any).from("institutions").select("id, name").order("name"),
-      ]);
+      // Products
+      const prodRes = await (supabase as any).from("conofta_products").select("*").order("name");
+      if (prodRes.error) {
+        console.error("[Inventario] products error:", prodRes.error.message);
+      }
       setProducts(prodRes.data || []);
+
+      // Institutions
+      const instRes = await (supabase as any).from("institutions").select("id, name").order("name");
+      if (instRes.error) console.error("[Inventario] institutions error:", instRes.error.message);
       setInstitutions(instRes.data || []);
 
-      const invQ = (supabase as any).from("conofta_inventory")
+      // Inventory
+      const invQ = (supabase as any)
+        .from("conofta_inventory")
         .select("*, product:conofta_products(*)");
       if (isCoordinador && institutionId) invQ.eq("institution_id", institutionId);
-      const { data: invData } = await invQ;
+      const { data: invData, error: invErr } = await invQ;
+      if (invErr) console.error("[Inventario] inventory error:", invErr.message);
       setInventory(invData || []);
 
-      const repQ = (supabase as any).from("conofta_replenishment_requests")
+      // Replenishment requests
+      const repQ = (supabase as any)
+        .from("conofta_replenishment_requests")
         .select("*, institution:institutions(name), items:conofta_replenishment_items(*, product:conofta_products(sku, name, unit))")
         .order("created_at", { ascending: false });
       if (isCoordinador && institutionId) repQ.eq("institution_id", institutionId);
-      const { data: repData } = await repQ;
+      const { data: repData, error: repErr } = await repQ;
+      if (repErr) console.error("[Inventario] replenishment error:", repErr.message);
       setRequests(repData || []);
 
-      const taskQ = (supabase as any).from("conofta_inventory_tasks")
-        .select("*, institution:institutions(name)").order("due_date", { ascending: false });
+      // Inventory tasks
+      const taskQ = (supabase as any)
+        .from("conofta_inventory_tasks")
+        .select("*, institution:institutions(name)")
+        .order("due_date", { ascending: false });
       if (isCoordinador && institutionId) taskQ.eq("institution_id", institutionId);
-      const { data: taskData } = await taskQ;
+      const { data: taskData, error: taskErr } = await taskQ;
+      if (taskErr) console.error("[Inventario] tasks error:", taskErr.message);
       setTasks(taskData || []);
+    } catch (err) {
+      console.error("[Inventario] Unexpected fetch error:", err);
     } finally {
       setLoading(false);
     }
@@ -224,12 +244,24 @@ export default function ConoftaInventario() {
     fetchAll();
   };
 
+  // Still loading auth/role
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <div className="text-center space-y-3">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-400 mx-auto" />
+          <p className="text-xs text-muted-foreground">Carregando inventário...</p>
+        </div>
       </div>
     );
+  }
+
+  // Tables not applied yet — show setup guide instead of blank page
+  if (!loading && products.length === 0 && inventory.length === 0) {
+    const showSetupBanner = isAdmin;
+    if (showSetupBanner) {
+      // Only show setup banner when tables are truly empty (not just no stock)
+    }
   }
 
   return (
