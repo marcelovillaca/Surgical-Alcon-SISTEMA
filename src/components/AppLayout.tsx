@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Package, Users, ClipboardList, MapPin, Truck,
   TrendingUp, Settings, ChevronLeft, ChevronRight, LogOut, Shield,
   FileDown, FileText, BarChart2, PieChart, ClipboardCheck, UserCog,
-  BarChart3, Menu, X, Home,
+  BarChart3, Menu, X, Home, Warehouse,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -58,6 +58,7 @@ const menuGroups: Record<"alcon" | "conofta", MenuGroup[]> = {
         { to: "/conofta/waitlist", icon: ClipboardCheck, label: "Ficha de Ingreso", roles: ["gerente", "admin_conofta", "coordinador_local"] },
         { to: "/conofta/lista", icon: Users, label: "Lista General", roles: ["gerente", "admin_conofta", "coordinador_local"] },
         { to: "/conofta/reportes", icon: FileDown, label: "Reportes Operativos", roles: ["gerente", "admin_conofta", "coordinador_local"] },
+        { to: "/conofta/inventario", icon: Warehouse, label: "Inventario", roles: ["gerente", "admin_conofta", "coordinador_local"] },
       ],
     },
     {
@@ -78,8 +79,8 @@ const menuGroups: Record<"alcon" | "conofta", MenuGroup[]> = {
       label: "Sistema",
       roles: ["gerente", "admin_conofta"],
       items: [
-        { to: "/usuarios", icon: UserCog, label: "Gestión de Usuarios", roles: ["gerente", "admin_conofta"] },
-        { to: "/auditoria", icon: Shield, label: "Auditoría Clínica", roles: ["gerente"] },
+        { to: "/usuarios", icon: UserCog, label: "Gestión de Usuarios", roles: ["gerente"] },
+        { to: "/auditoria", icon: Shield, label: "Auditoría Clínica", roles: ["gerente", "admin_conofta"] },
       ],
     },
   ],

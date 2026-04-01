@@ -162,7 +162,7 @@ export default function Conofta() {
                 </TabsList>
 
                 {/* ══ CENTRO DE COMANDO ══════════════════════════════════════ */}
-                <CentroDeComando onNavigate={navigate} isGerenteUser={isGerenteUser || false} />
+                <CentroDeComando onNavigate={navigate} isGerenteUser={isGerenteUser || false} filters={filters} />
 
                 <TabsContent value="kpis" className="space-y-8 mt-0">
                     <div className={cn("grid grid-cols-1 sm:grid-cols-2 gap-6", isGerenteUser ? "lg:grid-cols-4" : "lg:grid-cols-2")}>
@@ -374,8 +374,8 @@ export default function Conofta() {
 
 
 // ─── Centro de Comando Component ────────────────────────────────────────────
-function CentroDeComando({ onNavigate, isGerenteUser }: { onNavigate: (path: string) => void, isGerenteUser: boolean }) {
-    const { entries, loading } = useWaitlist();
+function CentroDeComando({ onNavigate, isGerenteUser, filters }: { onNavigate: (path: string) => void, isGerenteUser: boolean, filters: any }) {
+    const { entries, loading } = useWaitlist(filters);
 
     const stats = useMemo(() => {
         const count = (s: string) => entries.filter(e => e.status === s).length;

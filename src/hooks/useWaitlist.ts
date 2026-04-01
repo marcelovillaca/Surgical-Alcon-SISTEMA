@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserRole } from "@/hooks/useUserRole";
 import { toast } from "sonner";
 
 export type WaitlistStatus = 'pendente' | 'informado' | 'apto' | 'agendado' | 'operado' | 'concluido' | 'cancelado';
@@ -79,31 +80,53 @@ export interface Journey {
   description?: string;
 }
 
-export function useWaitlist() {
+export function useWaitlist(filters?: { sucursal?: string; medico?: string }) {
   const { user } = useAuth();
+  const { role, institutionId } = useUserRole();
   const [loading, setLoading] = useState(false);
   const [entries, setEntries] = useState<WaitlistEntry[]>([]);
   const [journeys, setJourneys] = useState<Journey[]>([]);
   const [surgeons, setSurgeons] = useState<Surgeon[]>([]);
 
   const fetchWaitlist = async () => {
+    if (!user) return;
     setLoading(true);
     try {
       let query = supabase
         .from('conofta_waitlist' as any)
-        .select('*, patient:conofta_patients(*), surgeon:conofta_surgeons(*)');
+        .select('*, patient:conofta_patients(*), surgeon:conofta_surgeons(*), institution:institutions(name)');
 
-      // Add logic for data isolation if needed, 
-      // but for now we fetch all and let the component handle UI filters if needed,
-      // or we can strictly filter here if we have the role info.
-      
+      // ─── Data Isolation ───────────────────────────────────────────────────
+      // If Local Coordinator, restrict strictly by institution_id
+      if (role === "coordinador_local" && institutionId) {
+        query = query.eq('institution_id', institutionId);
+      }
+
       const { data, error } = await (query.order('created_at', { ascending: false }) as any);
-
       if (error) throw error;
-      setEntries(data || []);
+
+      let filteredData = data || [];
+
+      // ─── Post-fetch filtering (by name/filters) ───────────────────────────
+      if (filters && role !== "coordinador_local") {
+        if (filters.sucursal && filters.sucursal !== "Todas") {
+          const normSel = filters.sucursal.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+          filteredData = filteredData.filter((e: any) => {
+            const instName = e.institution?.name || "";
+            const normInst = instName.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            return normInst.includes(normSel) || normSel.includes(normInst);
+          });
+        }
+      }
+
+      if (filters?.medico && filters.medico !== "Todos") {
+        filteredData = filteredData.filter((e: any) => e.surgeon?.name === filters.medico);
+      }
+
+      setEntries(filteredData);
     } catch (error: any) {
       console.error("Error fetching waitlist:", error);
-      toast.error("Erro ao carregar lista de espera");
+      toast.error("Error al cargar la lista");
     } finally {
       setLoading(false);
     }

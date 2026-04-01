@@ -39,6 +39,7 @@ export default function InviteUsers() {
   const { isGerente, loading: roleLoading } = useUserRole();
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<string>("visitador");
+  const [selectedInstitution, setSelectedInstitution] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -118,7 +119,8 @@ export default function InviteUsers() {
       role: role,
       invite_code: code,
       expires_at: expiresAt,
-      created_by: user?.id || null, // Allow null for emergency recovery
+      created_by: user?.id || null,
+      institution_id: role === "coordinador_local" ? selectedInstitution : null
     };
 
     console.log("Submitting invite:", inviteData);
@@ -131,6 +133,7 @@ export default function InviteUsers() {
     } else {
       setSuccess(`✅ ¡Invitación creada! Código: ${code}`);
       setEmail("");
+      setSelectedInstitution("");
       fetchInvitations();
     }
     setLoading(false);
@@ -170,9 +173,31 @@ export default function InviteUsers() {
     if (!error) fetchUsers();
   };
 
-  const handleChangeRole = async (userId: string, newRole: string) => {
-    await supabase.from("user_roles").update({ role: newRole as any }).eq("user_id", userId);
-    fetchUsers();
+  const handleChangeRole = async (userId: string, newRole: string, institutionId?: string) => {
+    const updateData: any = { role: newRole as any };
+    if (newRole === "coordinador_local" && institutionId) {
+      updateData.institution_id = institutionId;
+    } else if (newRole !== "coordinador_local") {
+      updateData.institution_id = null;
+    }
+    
+    const { error } = await supabase.from("user_roles").update(updateData).eq("user_id", userId);
+    if (!error) {
+      toast({ title: "Rol actualizado", description: "El acceso del usuario fue modificado exitosamente." });
+      fetchUsers();
+    } else {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  };
+
+  const handleChangeInstitution = async (userId: string, instId: string) => {
+    const { error } = await supabase.from("user_roles").update({ institution_id: instId }).eq("user_id", userId);
+    if (!error) {
+      toast({ title: "Sede actualizada", description: "La sucursal del coordinador fue cambiada." });
+      fetchUsers();
+    } else {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
   };
 
   const cancelInvitation = async (id: string, email: string) => {
@@ -186,12 +211,13 @@ export default function InviteUsers() {
     }
   };
 
-  const handleAssignRole = async (userId: string, targetRole: string) => {
+  const handleAssignRole = async (userId: string, targetRole: string, institutionId?: string) => {
     if (!targetRole) return;
-    const { error } = await supabase.from("user_roles").insert({
+    const { error } = await (supabase.from("user_roles") as any).insert({
       user_id: userId,
       role: targetRole as any,
-      is_blocked: false
+      is_blocked: false,
+      institution_id: targetRole === "coordinador_local" ? institutionId : null
     });
     if (!error) {
       toast({ title: "Acceso Concedido", description: "El usuario ya pode entrar al sistema." });
@@ -242,18 +268,55 @@ export default function InviteUsers() {
           <div className="bg-card border border-border p-6 rounded-2xl shadow-xl relative overflow-hidden">
              <div className="absolute -top-4 -right-4 opacity-5"><UserPlus className="h-32 w-32" /></div>
              <h3 className="text-sm font-black uppercase text-blue-500 mb-6 flex items-center gap-2">NUEVA INVITACIÓN</h3>
-             <form onSubmit={handleInvite} className="flex flex-wrap gap-4 items-end">
-                <div className="flex-1 min-w-[240px]">
-                  <label className="text-[10px] font-bold uppercase text-muted-foreground">EMAIL</label>
-                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full mt-2 rounded-xl border border-border bg-background px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500" required />
+             <form onSubmit={handleInvite} className="flex flex-col gap-6">
+                <div className="flex flex-wrap gap-4 items-end">
+                  <div className="flex-1 min-w-[240px]">
+                    <label className="text-[10px] font-bold uppercase text-muted-foreground">EMAIL</label>
+                    <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full mt-2 rounded-xl border border-border bg-background px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500" required />
+                  </div>
                 </div>
-                <div className="min-w-[180px]">
-                  <label className="text-[10px] font-bold uppercase text-muted-foreground">ROL</label>
-                  <select value={role} onChange={(e) => setRole(e.target.value)} className="w-full mt-2 rounded-xl border border-border bg-background px-4 py-3 text-sm cursor-pointer">
-                    {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-                  </select>
+
+                <div className="space-y-4">
+                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Rol del Usuario</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {ROLES.map((r) => (
+                      <button
+                        key={r.value}
+                        type="button"
+                        onClick={() => setRole(r.value)}
+                        className={cn(
+                          "flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all gap-2 group",
+                          role === r.value
+                            ? "border-primary bg-primary/10 ring-4 ring-primary/10"
+                            : "border-border bg-card/40 hover:border-primary/50"
+                        )}
+                      >
+                        <Shield className={cn("h-6 w-6", role === r.value ? "text-primary" : "text-muted-foreground group-hover:text-primary")} />
+                        <span className={cn("text-[10px] font-black uppercase text-center", role === r.value ? "text-foreground" : "text-muted-foreground")}>{r.label}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  {role === "coordinador_local" && (
+                    <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                      <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Sucursal Asignada</label>
+                      <select
+                        required
+                        value={selectedInstitution}
+                        onChange={(e) => setSelectedInstitution(e.target.value)}
+                        className="w-full h-12 bg-background border-2 border-border rounded-xl px-4 text-sm font-bold focus:border-primary outline-none transition-all"
+                      >
+                        <option value="">Seleccione una sede...</option>
+                        {institutions.map(inst => (
+                          <option key={inst.id} value={inst.id}>{inst.name}</option>
+                        ))}
+                      </select>
+                      <p className="text-[10px] text-muted-foreground italic">El coordinador local solo podrá visualizar datos de esta sede.</p>
+                    </div>
+                  )}
                 </div>
-                <button type="submit" disabled={loading} className="px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 disabled:opacity-50">
+
+                <button type="submit" disabled={loading} className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 disabled:opacity-50">
                   {loading ? "..." : "Enviar Invitación"}
                 </button>
              </form>
@@ -360,16 +423,26 @@ export default function InviteUsers() {
                  </div>
                  <div className="flex items-center gap-2">
                     <span className="text-[10px] font-bold text-muted-foreground uppercase mr-2 italic">Asignar Rol:</span>
-                    <div className="flex flex-wrap gap-1">
-                      {ROLES.slice(1).map(r => ( // skip gerente for safety
-                        <button 
-                          key={r.value}
-                          onClick={() => handleAssignRole(u.id, r.value)}
-                          className="px-3 py-1.5 rounded-lg border border-border text-[10px] font-bold hover:bg-emerald-500 hover:text-white hover:border-emerald-500 transition-all"
-                        >
-                          {r.label}
-                        </button>
-                      ))}
+                    <div className="flex flex-col gap-2">
+                      <select 
+                        className="bg-background border border-border rounded-lg px-2 py-1 text-[11px] font-bold"
+                        onChange={(e) => {
+                          const targetRole = e.target.value;
+                          if (targetRole !== "coordinador_local") {
+                            handleAssignRole(u.id, targetRole);
+                          } else {
+                            if (selectedInstitution) {
+                               handleAssignRole(u.id, targetRole, selectedInstitution);
+                            } else {
+                               toast({ title: "Sede requerida", description: "Seleccione una sede arriba antes de asignar el rol de coordinador.", variant: "destructive" });
+                            }
+                          }
+                        }}
+                        defaultValue=""
+                      >
+                        <option value="" disabled>Asignar Rol...</option>
+                        {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                      </select>
                     </div>
                  </div>
                </div>
@@ -406,14 +479,39 @@ export default function InviteUsers() {
                     </div>
                  </div>
                  <div className="flex gap-2">
-                   <select 
-                     value={u.role} 
-                     onChange={(e) => handleChangeRole(u.user_id, e.target.value)} 
-                     className="text-[10px] font-bold bg-background border border-border rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-primary outline-none"
-                     disabled={u.user_id === user?.id}
-                   >
-                      {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-                   </select>
+                   <div className="flex flex-col gap-2">
+                     <select 
+                       value={u.role} 
+                       onChange={(e) => {
+                         const newRole = e.target.value;
+                         if (newRole !== "coordinador_local") {
+                           handleChangeRole(u.user_id, newRole);
+                         } else {
+                           if (selectedInstitution) {
+                             handleChangeRole(u.user_id, newRole, selectedInstitution);
+                           } else {
+                             toast({ title: "Sede requerida", description: "Seleccione una sede arriba antes de cambiar el rol a coordinador.", variant: "destructive" });
+                           }
+                         }
+                       }} 
+                       className="text-[10px] font-bold bg-background border border-border rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-primary outline-none"
+                       disabled={u.user_id === user?.id}
+                     >
+                        {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                     </select>
+                     {u.role === "coordinador_local" && (
+                       <select
+                         value={u.institution_id || ""}
+                         onChange={(e) => handleChangeInstitution(u.user_id, e.target.value)}
+                         className="text-[10px] font-bold bg-background border border-emerald-500/30 text-emerald-500 rounded-lg px-2 py-1 group-hover:border-emerald-500 transition-all outline-none"
+                       >
+                         <option value="" disabled>Seleccionar Sede</option>
+                         {institutions.map(inst => (
+                           <option key={inst.id} value={inst.id}>{inst.name}</option>
+                         ))}
+                       </select>
+                     )}
+                   </div>
                    {u.user_id !== user?.id && (
                      <div className="flex gap-1">
                        <button 
