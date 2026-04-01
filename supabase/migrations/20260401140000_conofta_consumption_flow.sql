@@ -1,27 +1,46 @@
 -- ============================================================
 -- CONOFTA: Consumo de Insumos por Jornada e por Paciente
--- 
+--
 -- LÓGICA DE CUSTO:
 --   Custo Cirurgia = Custo_Lente_Paciente + (Σ Insumos_Jornada / N_Pacientes)
 -- ============================================================
 
--- ─── 1. CONSUMO DE LENTE POR PACIENTE (Custo Direto) ─────────────────────────
+-- ─── 0. GARANTIR TABELAS BASE (defensivo — cria se não existir) ──────────────
+-- conofta_journeys pode não existir se a migration original não foi aplicada
+CREATE TABLE IF NOT EXISTS public.conofta_journeys (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name            TEXT NOT NULL,
+  date            DATE NOT NULL,
+  institution_id  UUID REFERENCES public.institutions(id) NOT NULL,
+  max_capacity    INTEGER DEFAULT 20,
+  description     TEXT,
+  created_by      UUID REFERENCES auth.users(id),
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Garantir RLS se tabela já existia sem ela
+ALTER TABLE public.conofta_journeys ENABLE ROW LEVEL SECURITY;
+
+-- Políticas básicas (DROP IF EXISTS para ser idempotente)
+DROP POLICY IF EXISTS "Admin manages journeys" ON public.conofta_journeys;
+DROP POLICY IF EXISTS "Everyone reads journeys" ON public.conofta_journeys;
+CREATE POLICY "Admin manages journeys"  ON public.conofta_journeys FOR ALL USING (public.is_gerente());
+CREATE POLICY "Everyone reads journeys" ON public.conofta_journeys FOR SELECT TO authenticated USING (true);
+
 -- Registra qual lente foi implantada em cada olho do paciente
-ALTER TABLE conofta_waitlist
-  ADD COLUMN IF NOT EXISTS lens_product_id     UUID REFERENCES conofta_products(id),
+ALTER TABLE public.conofta_waitlist
+  ADD COLUMN IF NOT EXISTS lens_product_id     UUID REFERENCES public.conofta_products(id),
   ADD COLUMN IF NOT EXISTS lens_qty            NUMERIC(12,2) DEFAULT 1,
-  ADD COLUMN IF NOT EXISTS lens_lot_number     TEXT,           -- Nº de lote para rastreabilidade
+  ADD COLUMN IF NOT EXISTS lens_lot_number     TEXT,
   ADD COLUMN IF NOT EXISTS lens_registered_at  TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS lens_registered_by  UUID REFERENCES auth.users(id);
 
 -- ─── 2. CONSUMO DE INSUMOS DA JORNADA (Custo Rateado) ────────────────────────
--- Cada jornada pode ter N insumos consumidos. O custo total é dividido
--- pelo número de pacientes operados naquela jornada.
-CREATE TABLE IF NOT EXISTS conofta_journey_supplies (
+CREATE TABLE IF NOT EXISTS public.conofta_journey_supplies (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  jornada_id      UUID NOT NULL REFERENCES conofta_journeys(id) ON DELETE CASCADE,
-  product_id      UUID NOT NULL REFERENCES conofta_products(id),
-  institution_id  UUID NOT NULL REFERENCES institutions(id),
+  jornada_id      UUID NOT NULL REFERENCES public.conofta_journeys(id) ON DELETE CASCADE,
+  product_id      UUID NOT NULL REFERENCES public.conofta_products(id),
+  institution_id  UUID NOT NULL REFERENCES public.institutions(id),
   quantity        NUMERIC(12,2) NOT NULL DEFAULT 1,
   lot_number      TEXT,
   notes           TEXT,
