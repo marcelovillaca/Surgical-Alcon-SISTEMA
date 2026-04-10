@@ -131,14 +131,16 @@ export function useDashboardData(filters: DashboardFilters, includePublic = fals
     });
 
     const totalVentas = sales.reduce((s, r) => s + Number(r.monto_usd), 0);
-    // costo in sales_details = TOTAL cost for the row (imported from "COSTO" column which may be total, not unit).
-    // Only multiply by quantity when we have a centralized unit-cost reference (conofta_product_costs).
+    // COSTO (col K) = unit cost per item. CANT (col L) = qty stored in r.total.
+    // Total row cost = unit_cost × qty — ALWAYS multiply (user confirmed costo = unit cost).
     const rowCost = (r: SalesRow): number => {
-      const unitCost = costRefMap[normStr(r.codigo_producto)] ?? costRefMap[normStr(r.producto)];
-      return (unitCost != null && unitCost > 0)
-        ? unitCost * Number(r.total)   // centralized unit cost × qty
-        : Number(r.costo);              // row's own costo = already total cost for the row
+      const qty = Math.max(Number(r.total) || 1, 1);  // qty from CANT column
+      const refCost = costRefMap[normStr(r.codigo_producto)] ?? costRefMap[normStr(r.producto)];
+      return (refCost != null && refCost > 0)
+        ? refCost * qty           // centralized reference cost × qty (most accurate)
+        : Number(r.costo) * qty;  // unit cost from file (COSTO col K) × qty (CANT col L)
     };
+
     const totalCosto = sales.reduce((s, r) => s + rowCost(r), 0);
     const totalUnits = sales.reduce((s, r) => s + Number(r.total), 0);
     const totalProfit = totalVentas - totalCosto;

@@ -144,37 +144,18 @@ export function parseSalesSheet(sheet: XLSX.WorkSheet): { rows: SalesRow[]; erro
     ).trim();
     if (!fecha || !cliente) return;
 
-    // ── Determine columns ────────────────────────────────────────────────────
-    // The user's spreadsheet layout:
-    //   TOTAL     = monetary total for the row (e.g. 68,477 USD)  ← ALWAYS revenue
-    //   MONTO USD = explicit USD amount (may differ from TOTAL if different currency)
-    //   CANT/CANTIDAD = quantity of units
-    //
-    // Priority order for revenue (monto_usd):
-    //   1. MONTO USD (explicit USD column)  — only used when qty column also present
-    //   2. TOTAL                             — fallback / primary when no MONTO USD
-    //
-    // Priority order for quantity (total field in DB — named 'total' for legacy reasons):
-    //   CANT / CANTIDAD / QTY / UNITS       — real unit count
-    //   If none found → 0 (not from TOTAL, to avoid overwriting revenue)
+    // ── Column mapping (confirmed by user) ────────────────────────────────
+    // Col K: COSTO     = unit cost per item         → stored in costo
+    // Col L: CANT      = quantity of units sold      → stored in total (legacy field name)
+    // Col M: MONTO     = total amount in Guaraní     → ignored for USD dashboard
+    // Col N: MONTO USD = total amount in USD         → stored in monto_usd (= REVENUE)
 
-    const totalRaw    = findValExact(raw, ["TOTAL"]);
-    const montoUsdRaw = findValExact(raw, ["MONTO USD", "MONTO FACTURADO", "IMPORTE", "TOTAL USD"]);
-    const cantRaw     = findValExact(raw, ["CANT", "CANTIDAD", "QTY", "UNIDADES", "UNITS", "QTDE"]);
+    const montoUsdRaw = findValExact(raw, [
+      "MONTO USD", "MONTO EN USD", "MONTO DOLARES", "USD",
+      "MONTO FACTURADO", "IMPORTE", "TOTAL USD", "VALOR USD"
+    ]);
+    const cantRaw = findValExact(raw, ["CANT", "CANTIDAD", "QTY", "UNIDADES", "UNITS", "QTDE"]);
 
-    // Has an explicit unit-qty column (not TOTAL)?
-    const hasQtyCol = cantRaw !== null && cantRaw !== "";
-    // Has an explicit MONTO USD column?
-    const hasMontoUsd = montoUsdRaw !== null && montoUsdRaw !== "";
-
-    // Revenue: prefer MONTO USD only when we can also trust qty separately;
-    // otherwise use TOTAL as revenue (most common in user's sheets)
-    const revenueVal = (hasMontoUsd && hasQtyCol) ? toNum(montoUsdRaw) : toNum(totalRaw);
-
-    // Quantity: use CANT column; if unavailable default to 0 not TOTAL
-    const qtyVal = hasQtyCol ? toNum(cantRaw) : 0;
-
-    // Currency label
     const montoEnRaw = findValExact(raw, ["MONTO EN", "MONEDA", "CURRENCY"]) ||
                        findVal(raw, ["MONTO EN", "MONEDA EN"]);
     const montoEn = montoEnRaw ? String(montoEnRaw).trim() : "USD";
@@ -198,7 +179,7 @@ export function parseSalesSheet(sheet: XLSX.WorkSheet): { rows: SalesRow[]; erro
         findVal(raw, ["FAC", "NRO FACTURA"]) ||
         ""
       ),
-      cod2: String(findVal(raw, ["COD2", "COD 2"]) || ""),
+      cod2:    String(findVal(raw, ["COD2", "COD 2"]) || ""),
       codigo_producto: String(
         findValExact(raw, ["CODIGO PRODUCTO"]) ||
         findVal(raw, ["SKU", "COD PRODUCTO"]) ||
@@ -209,10 +190,13 @@ export function parseSalesSheet(sheet: XLSX.WorkSheet): { rows: SalesRow[]; erro
         findVal(raw, ["DESCRIPCION PRODUCTO", "NOMBRE PRODUCTO"]) ||
         ""
       ),
+      // Unit cost — dashboard multiplies by CANT to get total row cost
       costo:    toNum(findValExact(raw, ["COSTO"])),
-      total:    qtyVal,        // unit quantity (0 if no CANT column)
+      // Quantity of units sold (CANT column L)
+      total:    toNum(cantRaw),
       monto_en: montoEn,
-      monto_usd: revenueVal,   // ← monetary total (TOTAL or MONTO USD)
+      // Revenue in USD (MONTO USD column N) — primary financial metric
+      monto_usd: toNum(montoUsdRaw || findVal(raw, ["MONTO"])),
       vendedor: String(findVal(raw, ["VENDEDOR"]) || ""),
       mercado:  String(findVal(raw, ["MERCADO"]) || "Privado")
     });
