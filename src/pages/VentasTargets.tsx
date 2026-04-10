@@ -135,7 +135,7 @@ export default function VentasTargets() {
       const ws = wb.Sheets[wb.SheetNames[0]];
 
       if (tab === "ventas") {
-        const { rows, errors } = parseSalesSheet(ws);
+        const { rows, errors, skipped } = parseSalesSheet(ws);
         if (errors.length > 0) { setStatusFor(tab, { type: "error", message: errors.join("\n") }); return; }
         const insertRows = rows.map(r => {
           const row: any = {
@@ -175,8 +175,11 @@ export default function VentasTargets() {
 
           if (error) throw error;
         }
-        await logAction("IMPORT_DATA", { table: "sales_details", filename: file.name, rows: rows.length, mode: "upsert_dedup" }, "sales_imports");
-        setStatusFor(tab, { type: "success", message: `✅ ${rows.length} registros procesados. Nuevos registros añadidos; duplicados ignorados automáticamente.` });
+        await logAction("IMPORT_DATA", { table: "sales_details", filename: file.name, rows: rows.length, skipped, mode: "upsert_dedup" }, "sales_imports");
+        const skipMsg = skipped > 0
+          ? `\n⚠️ ${skipped} filas ignoradas: son líneas en blanco, subtotales o cabeceras repetidas del ERP — esto es normal.`
+          : "";
+        setStatusFor(tab, { type: "success", message: `✅ ${rows.length} registros de datos válidos procesados.${skipMsg}` });
         fetchCounts();
       } else if (tab === "targets") {
         const { rows, errors, warnings } = parseTargetsSheet(ws);

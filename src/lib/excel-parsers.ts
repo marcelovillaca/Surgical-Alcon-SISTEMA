@@ -131,18 +131,45 @@ export function toNum(val: any): number {
   return Number(cleaned);
 }
 
-export function parseSalesSheet(sheet: XLSX.WorkSheet): { rows: SalesRow[]; errors: string[] } {
+export function parseSalesSheet(sheet: XLSX.WorkSheet): { rows: SalesRow[]; errors: string[]; skipped: number } {
   const data = XLSX.utils.sheet_to_json<any>(sheet, { defval: "" });
   const rows: SalesRow[] = [];
+  let skipped = 0;
+
+  // Carryforward: ERP reports often have merged cells for FECHA and CLIENTE.
+  // When a row has an empty value, reuse the last seen non-empty value.
+  let lastFecha = "";
+  let lastCliente = "";
+
   data.forEach((raw) => {
-    const fecha = parseExcelDate(findVal(raw, ["FECHA", "DATE"]));
-    // Use exact match for CLIENTE to avoid matching "COD CLIENTE"
-    const cliente = String(
+    const rawFecha   = parseExcelDate(findVal(raw, ["FECHA", "DATE"]));
+    const rawCliente = String(
       findValExact(raw, ["CLIENTE"]) ||
       findVal(raw, ["NOMBRE CLIENTE", "RAZON SOCIAL", "NOMBRE DEL CLIENTE"]) ||
       ""
     ).trim();
-    if (!fecha || !cliente) return;
+
+    // Update carryforward only when we see real non-empty values
+    if (rawFecha)   lastFecha   = rawFecha;
+    if (rawCliente) lastCliente = rawCliente;
+
+    const fecha   = rawFecha   || lastFecha;
+    const cliente = rawCliente || lastCliente;
+
+    // Require: date + client + at least a product OR invoice identifier
+    // This discards blank rows, subtotals, and page-break header repetitions
+    const hasProduct = !!(
+      findValExact(raw, ["CODIGO PRODUCTO"]) ||
+      findVal(raw, ["SKU", "COD PRODUCTO"]) ||
+      findValExact(raw, ["PRODUCTO"]) ||
+      findVal(raw, ["DESCRIPCION PRODUCTO", "NOMBRE PRODUCTO"])
+    );
+    const hasFacNro = !!(
+      findValExact(raw, ["FAC. NRO", "FAC NRO", "FACTURA NRO", "FACTURA"]) ||
+      findVal(raw, ["FAC", "NRO FACTURA"])
+    );
+
+    if (!fecha || !cliente || (!hasProduct && !hasFacNro)) { skipped++; return; }
 
     // ── Column mapping (confirmed by user) ────────────────────────────────
     // Col K: COSTO     = unit cost per item         → stored in costo
@@ -203,7 +230,7 @@ export function parseSalesSheet(sheet: XLSX.WorkSheet): { rows: SalesRow[]; erro
       mercado:  String(findVal(raw, ["MERCADO"]) || "Privado")
     });
   });
-  return { rows, errors: [] };
+  return { rows, errors: [], skipped };
 }
 
 export function parseConoftaSurgeriesSheet(sheet: XLSX.WorkSheet): { rows: ConoftaSurgeryRow[], errors: string[] } {
@@ -232,7 +259,7 @@ export function parseConoftaSurgeriesSheet(sheet: XLSX.WorkSheet): { rows: Conof
       tipo_costo: "directo", honorarios: 0
     });
   });
-  return { rows, errors: [] };
+  return { rows, errors: [], skipped };
 }
 
 export function parseConoftaIndirectCostsSheet(sheet: XLSX.WorkSheet): { rows: ConoftaSurgeryRow[], errors: string[] } {
@@ -253,7 +280,7 @@ export function parseConoftaIndirectCostsSheet(sheet: XLSX.WorkSheet): { rows: C
       tipo_costo: "indirecto", costo_unitario: 0, honorarios: 0
     });
   });
-  return { rows, errors: [] };
+  return { rows, errors: [], skipped };
 }
 
 export function parseConoftaProductCostsSheet(sheet: XLSX.WorkSheet): { rows: any[], errors: string[] } {
@@ -292,7 +319,7 @@ export function parseConoftaProductCostsSheet(sheet: XLSX.WorkSheet): { rows: an
       rows.push({ item_name: String(item).trim(), anio, costo_unitario: effectiveCostoConofta, costo_alcon: effectiveCostoAlcon, honorario_base: honorario, sucursal: sucursalVal });
     }
   });
-  return { rows, errors: [] };
+  return { rows, errors: [], skipped };
 }
 
 export function parseConoftaExpensesSheet(sheet: XLSX.WorkSheet): { rows: any[], errors: string[] } {
@@ -311,7 +338,7 @@ export function parseConoftaExpensesSheet(sheet: XLSX.WorkSheet): { rows: any[],
       monto: toNum(findVal(r, ["VALOR", "MONTO", "TOTAL", "AMOUNT", "MONTO USD"]))
     });
   });
-  return { rows, errors: [] };
+  return { rows, errors: [], skipped };
 }
 
 export function parseConoftaTargetsSheet(sheet: XLSX.WorkSheet) {
@@ -326,7 +353,7 @@ export function parseConoftaTargetsSheet(sheet: XLSX.WorkSheet) {
     ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"].forEach(m => meses[m] = toNum(findVal(raw, [m])));
     rows.push({ anio, meses, revenue_per_surgery: revenue, sucursal, tipo_cirugia: tipo });
   });
-  return { rows, errors: [] };
+  return { rows, errors: [], skipped };
 }
 
 export function parseConoftaSurgeonFeesSheet(sheet: XLSX.WorkSheet) { return parseConoftaProductCostsSheet(sheet); }
@@ -389,7 +416,7 @@ export function parseClientsSheet(sheet: XLSX.WorkSheet): { rows: ClientRow[]; e
       market_type: String(findVal(r, ["MERCADO", "MARKET", "TIPO MERCADO"]) || "Privado")
     });
   });
-  return { rows, errors: [] };
+  return { rows, errors: [], skipped };
 }
 export function parseStockSheet(sheet?: XLSX.WorkSheet): { rows: StockRow[]; errors: string[] } {
   if (!sheet) return { rows: [], errors: [] };
@@ -403,7 +430,7 @@ export function parseStockSheet(sheet?: XLSX.WorkSheet): { rows: StockRow[]; err
     if (!cod || !lote) return;
     rows.push({ codigo_producto: cod, producto: prod, lote_sn: lote, fecha_vencimiento: venc });
   });
-  return { rows, errors: [] };
+  return { rows, errors: [], skipped };
 }
 
 export function downloadTemplate(type: string) {
