@@ -295,7 +295,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* ─── DESKTOP SIDEBAR ─── */}
       <aside
         className={cn(
-          "fixed left-0 top-0 z-40 h-screen border-r border-border bg-sidebar flex-col transition-all duration-300",
+          "fixed left-0 top-0 z-40 h-screen max-h-screen border-r border-border bg-sidebar flex flex-col transition-all duration-300 overflow-hidden",
           "hidden md:flex",
           collapsed ? "w-[68px]" : "w-[260px]"
         )}
@@ -313,7 +313,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Mobile Sidebar Drawer */}
       <aside
         className={cn(
-          "fixed left-0 top-0 z-50 h-screen w-[280px] border-r border-border bg-sidebar flex flex-col transition-transform duration-300 md:hidden",
+          "fixed left-0 top-0 z-50 h-screen max-h-screen w-[280px] border-r border-border bg-sidebar flex flex-col transition-transform duration-300 md:hidden overflow-hidden",
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
