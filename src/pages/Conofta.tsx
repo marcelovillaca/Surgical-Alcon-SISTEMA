@@ -228,110 +228,111 @@ export default function Conofta() {
                     </div>
                 </TabsContent>
 
-                {hasFinancialAccess && (
-                    <TabsContent value="finance" className="space-y-8 mt-0 animate-in fade-in slide-in-from-bottom-4">
-                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                            <KpiCard title="Ingresos Públicos" value={formatUSD(data.kpis.revenue)} changeType="positive" icon={DollarSign} variant="emerald" />
-                            <KpiCard title="Margen Neto" value={formatUSD(data.kpis.margin)} changeType={data.kpis.margin >= 0 ? "positive" : "negative"} icon={TrendingUp} variant={data.kpis.margin >= 0 ? "emerald" : "default"} />
-                            <KpiCard title="Margen Neto %" value={formatPct(data.kpis.grossMarginPct)} changeType={data.kpis.grossMarginPct >= 0 ? "positive" : "negative"} icon={BarChart3} variant={data.kpis.grossMarginPct >= 0 ? "emerald" : "default"} />
-                        </div>
+        {hasFinancialAccess && (
+          <TabsContent value="finance" className="space-y-6 mt-0 animate-in fade-in slide-in-from-bottom-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <KpiCard title="Ingresos Públicos" value={formatUSD(data.kpis.revenue)} changeType="positive" icon={DollarSign} variant="emerald" />
+              <KpiCard title="Margen Neto" value={formatUSD(data.kpis.margin)} changeType={data.kpis.margin >= 0 ? "positive" : "negative"} icon={TrendingUp} variant={data.kpis.margin >= 0 ? "emerald" : "default"} />
+              <KpiCard title="Margen Neto %" value={formatPct(data.kpis.grossMarginPct)} changeType={data.kpis.grossMarginPct >= 0 ? "positive" : "negative"} icon={BarChart3} variant={data.kpis.grossMarginPct >= 0 ? "emerald" : "default"} />
+            </div>
 
-                        {/* Equipment ROI */}
-                        {roi.totalInvestment > 0 && (
-                            <div className="rounded-3xl border border-primary/20 bg-gradient-to-br from-card/80 to-primary/5 p-8 shadow-2xl glass-surface ring-1 ring-white/10">
-                                <div className="flex items-center gap-4 mb-8">
-                                    <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center border border-primary/20 shadow-xl">
-                                        <Wrench className="h-8 w-8 text-primary" />
-                                    </div>
-                                    <div>
-                                        <h2 className="text-2xl font-display font-bold text-foreground tracking-tight">Análisis ROI de Equipamientos</h2>
-                                        <p className="text-sm text-muted-foreground">Cálculo dinámico de recuperación de inversión por margen quirúrgico</p>
-                                    </div>
-                                </div>
+            {/* Equipment ROI */}
+            {roi.totalInvestment > 0 && (
+              <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-card/80 to-primary/5 p-4 sm:p-8 shadow-2xl glass-surface ring-1 ring-white/10">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20 shadow-xl shrink-0">
+                    <Wrench className="h-6 w-6 text-primary" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg sm:text-2xl font-display font-bold text-foreground tracking-tight">Análisis ROI de Equipamientos</h2>
+                    <p className="text-xs sm:text-sm text-muted-foreground">Cálculo dinámico de recuperación de inversión</p>
+                  </div>
+                </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                                    {[
-                                        { label: "Inversión Total", val: formatUSD(roi.totalInvestment), sub: `${roi.items?.length || 0} Equipos`, color: "text-foreground" },
-                                        { label: "Margen Neto / Cirugía", val: formatUSD(roi.avgNetPerSurgery), sub: "Promedio Real", color: "text-emerald-400" },
-                                        { label: "Cirugías para Payback", val: roi.surgeriesForPayback.toLocaleString(), sub: `${roi.surgeriesDone} Realizadas`, color: "text-primary" },
-                                        { label: "Payback Estimado", val: `~${roi.monthsForPayback} meses`, sub: "Tiempo de Retorno", color: "text-foreground" }
-                                    ].map((stat, i) => (
-                                        <div key={i} className="rounded-2xl bg-background/40 border border-white/5 p-6 shadow-inner">
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2">{stat.label}</p>
-                                            <p className={cn("text-2xl font-black", stat.color)}>{stat.val}</p>
-                                            <p className="text-[10px] text-muted-foreground font-bold mt-1 uppercase">{stat.sub}</p>
-                                        </div>
-                                    ))}
-                                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+                  {[
+                    { label: "Inversión Total", val: formatUSD(roi.totalInvestment), sub: `${roi.items?.length || 0} Equipos`, color: "text-foreground" },
+                    { label: "Margen / Cirugía", val: formatUSD(roi.avgNetPerSurgery), sub: "Promedio Real", color: "text-emerald-400" },
+                    { label: "Cirugías Payback", val: roi.surgeriesForPayback.toLocaleString(), sub: `${roi.surgeriesDone} Realizadas`, color: "text-primary" },
+                    { label: "Payback Estimado", val: `~${roi.monthsForPayback} m`, sub: "Meses de Retorno", color: "text-foreground" }
+                  ].map((stat, i) => (
+                    <div key={i} className="rounded-xl bg-background/40 border border-white/5 p-3 sm:p-5">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1">{stat.label}</p>
+                      <p className={cn("text-lg sm:text-2xl font-black", stat.color)}>{stat.val}</p>
+                      <p className="text-[10px] text-muted-foreground font-bold mt-1 uppercase">{stat.sub}</p>
+                    </div>
+                  ))}
+                </div>
 
-                                <div className="space-y-3">
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-sm font-bold text-muted-foreground">Progreso de Amortización</span>
-                                        <span className="text-sm font-black text-primary">{roiPct.toFixed(1)}%</span>
-                                    </div>
-                                    <div className="h-3 rounded-full bg-zinc-800 border border-white/5 overflow-hidden shadow-inner">
-                                        <div
-                                            className="h-full rounded-full transition-all duration-1000 bg-gradient-to-r from-primary to-primary-foreground shadow-[0_0_20px_rgba(var(--primary),0.3)]"
-                                            style={{ width: `${roiPct}%` }}
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                        )}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-bold text-muted-foreground">Progreso de Amortización</span>
+                    <span className="text-sm font-black text-primary">{roiPct.toFixed(1)}%</span>
+                  </div>
+                  <div className="h-3 rounded-full bg-zinc-800 border border-white/5 overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-1000 gradient-gold shadow-[0_0_20px_rgba(var(--primary),0.3)]"
+                      style={{ width: `${roiPct}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
 
-                        {/* Monthly P&L table */}
-                        <Card className="rounded-3xl border-border bg-card/20 shadow-2xl overflow-hidden glass-surface">
-                            <div className="p-6 border-b border-white/5 bg-white/5 flex items-center gap-3">
-                                <Calendar className="h-6 w-6 text-primary" />
-                                <h2 className="text-xl font-bold font-display uppercase tracking-tight">P&L Consolidado Mensual</h2>
-                            </div>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left border-collapse min-w-[1100px]">
-                                    <thead>
-                                        <tr className="bg-muted/30 border-b border-white/5">
-                                            <th className="p-5 text-xs font-black text-muted-foreground uppercase tracking-widest">Métrica Financiera</th>
-                                            {data.monthly.map(m => <th key={m.mes} className="p-4 text-xs font-black text-muted-foreground uppercase text-center">{m.mes}</th>)}
-                                            <th className="p-5 text-xs font-black text-primary uppercase text-center bg-primary/5">ANUAL</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-white/5 text-sm">
-                                        <tr className="bg-emerald-500/5 hover:bg-emerald-500/10 transition-colors">
-                                            <td className="p-5 font-bold text-emerald-400">Ingresos Proyectados</td>
-                                            {data.monthly.map(m => <td key={m.mes} className="p-4 text-center font-bold text-emerald-400/80">{formatUSD(m.revenue)}</td>)}
-                                            <td className="p-5 text-center font-black text-emerald-400 bg-emerald-500/10">{formatUSD(data.kpis.revenue)}</td>
-                                        </tr>
-                                        {[
-                                            { label: "Costo Lentes", key: "costoLentes" },
-                                            { label: "Costo Insumos", key: "costoInsumos" },
-                                            { label: "Honorarios Médicos", key: "honorarios" },
-                                            { label: "RH Local", key: "rhLocal" },
-                                            { label: "RH Central", key: "rhCentral" },
-                                            { label: "Marketing", key: "marketing" },
-                                            { label: "Admin & Otros", key: "otros" },
-                                        ].map(row => (
-                                            <tr key={row.key} className="hover:bg-white/5 transition-all group">
-                                                <td className="p-5 font-medium text-muted-foreground group-hover:text-foreground">{row.label}</td>
-                                                {data.monthly.map(m => <td key={m.mes} className="p-4 text-center text-zinc-500">{(m as any)[row.key] > 0 ? formatUSD((m as any)[row.key]) : "-"}</td>)}
-                                                <td className="p-5 text-center font-bold bg-white/5">{(data.kpis as any)[row.key] > 0 ? formatUSD((data.kpis as any)[row.key]) : "-"}</td>
-                                            </tr>
-                                        ))}
-                                        <tr className="bg-primary/10 border-t-2 border-primary/20">
-                                            <td className="p-6 font-black text-primary uppercase text-lg tracking-tighter">Margen Neto Real</td>
-                                            {data.monthly.map(m => (
-                                                <td key={m.mes} className={`p-4 text-center font-black text-md ${m.margin >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                                                    {formatUSD(m.margin)}
-                                                </td>
-                                            ))}
-                                            <td className={`p-6 text-center font-black text-xl ${data.kpis.margin >= 0 ? "text-emerald-400" : "text-rose-400"} bg-primary/20`}>
-                                                {formatUSD(data.kpis.margin)}
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </Card>
-                    </TabsContent>
-                )}
+            {/* Monthly P&L table */}
+            <Card className="rounded-2xl border-border bg-card/20 shadow-2xl overflow-hidden glass-surface">
+              <div className="p-4 sm:p-6 border-b border-white/5 bg-white/5 flex items-center gap-3">
+                <Calendar className="h-5 w-5 text-primary shrink-0" />
+                <h2 className="text-base sm:text-xl font-bold font-display uppercase tracking-tight">P&amp;L Consolidado Mensual</h2>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse min-w-[900px]">
+                  <thead>
+                    <tr className="bg-muted/30 border-b border-white/5">
+                      <th className="p-3 sm:p-5 text-xs font-black text-muted-foreground uppercase tracking-widest">Métrica Financiera</th>
+                      {data.monthly.map(m => <th key={m.mes} className="p-3 text-xs font-black text-muted-foreground uppercase text-center">{m.mes}</th>)}
+                      <th className="p-3 sm:p-5 text-xs font-black text-primary uppercase text-center bg-primary/5">ANUAL</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5 text-sm">
+                    <tr className="bg-emerald-500/5 hover:bg-emerald-500/10 transition-colors">
+                      <td className="p-3 sm:p-5 font-bold text-emerald-400">Ingresos Proyectados</td>
+                      {data.monthly.map(m => <td key={m.mes} className="p-3 text-center font-bold text-emerald-400/80">{formatUSD(m.revenue)}</td>)}
+                      <td className="p-3 sm:p-5 text-center font-black text-emerald-400 bg-emerald-500/10">{formatUSD(data.kpis.revenue)}</td>
+                    </tr>
+                    {[
+                      { label: "Costo Lentes", key: "costoLentes" },
+                      { label: "Costo Insumos", key: "costoInsumos" },
+                      { label: "Honorarios Médicos", key: "honorarios" },
+                      { label: "RH Local", key: "rhLocal" },
+                      { label: "RH Central", key: "rhCentral" },
+                      { label: "Marketing", key: "marketing" },
+                      { label: "Admin & Otros", key: "otros" },
+                    ].map(row => (
+                      <tr key={row.key} className="hover:bg-white/5 transition-all group">
+                        <td className="p-3 sm:p-5 font-medium text-muted-foreground group-hover:text-foreground">{row.label}</td>
+                        {data.monthly.map(m => <td key={m.mes} className="p-3 text-center text-zinc-500">{(m as any)[row.key] > 0 ? formatUSD((m as any)[row.key]) : "-"}</td>)}
+                        <td className="p-3 sm:p-5 text-center font-bold bg-white/5">{(data.kpis as any)[row.key] > 0 ? formatUSD((data.kpis as any)[row.key]) : "-"}</td>
+                      </tr>
+                    ))}
+                    <tr className="bg-primary/10 border-t-2 border-primary/20">
+                      <td className="p-4 sm:p-6 font-black text-primary uppercase text-base sm:text-lg tracking-tighter">Margen Neto Real</td>
+                      {data.monthly.map(m => (
+                        <td key={m.mes} className={`p-3 text-center font-black ${m.margin >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                          {formatUSD(m.margin)}
+                        </td>
+                      ))}
+                      <td className={`p-4 sm:p-6 text-center font-black text-lg sm:text-xl ${data.kpis.margin >= 0 ? "text-emerald-400" : "text-rose-400"} bg-primary/20`}>
+                        {formatUSD(data.kpis.margin)}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          </TabsContent>
+        )}
+
 
                 <TabsContent value="results" className="space-y-8 mt-0 animate-in fade-in slide-in-from-bottom-4">
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
