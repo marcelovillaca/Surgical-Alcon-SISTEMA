@@ -152,24 +152,17 @@ export default function VentasTargets() {
 
         for (let i = 0; i < insertRows.length; i += 500) {
           const slice = insertRows.slice(i, i + 500);
-          // UPSERT: ignoreDuplicates=true means rows that already exist
-          // (same factura_nro + cod_cliente + codigo_producto + fecha) are silently skipped.
-          // This allows safely re-uploading the full file (Jan+Feb+Mar) without creating duplicates.
-          let { error } = await supabase.from("sales_details").upsert(slice as any, {
-            onConflict: "factura_nro,cod_cliente,codigo_producto,fecha",
-            ignoreDuplicates: true,
-          });
+          // Plain INSERT — the user has already reviewed the data.
+          // No silent deduplication: every row from the spreadsheet is inserted as-is.
+          // If the table has old data, use "Limpiar" first to avoid DB-level duplicates.
+          let { error } = await supabase.from("sales_details").insert(slice as any);
 
           if (error && (error.message.includes("mercado") || error.code === "PGRST204")) {
-            // Remove mercado from the objects and retry
             const cleanedSlice = slice.map(row => {
               const { mercado, ...rest } = row;
               return rest;
             });
-            const retry = await supabase.from("sales_details").upsert(cleanedSlice as any, {
-              onConflict: "factura_nro,cod_cliente,codigo_producto,fecha",
-              ignoreDuplicates: true,
-            });
+            const retry = await supabase.from("sales_details").insert(cleanedSlice as any);
             error = retry.error;
           }
 
