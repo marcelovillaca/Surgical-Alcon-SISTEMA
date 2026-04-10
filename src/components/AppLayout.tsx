@@ -358,8 +358,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        {/* Page Content */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 pb-24 md:pb-8">
+        {/* Page Content - Forced vertical scroll for consistent UX */}
+        <div className="flex-1 overflow-y-scroll p-4 md:p-6 pb-24 md:pb-8">
           {children}
         </div>
 
