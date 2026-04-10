@@ -245,7 +245,7 @@ export default function InviteUsers() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in p-4 lg:p-8 max-w-5xl mx-auto">
+    <div className="space-y-6 animate-fade-in px-2 sm:px-4 lg:px-8 max-w-5xl mx-auto">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold flex items-center gap-2 text-foreground">
@@ -278,21 +278,21 @@ export default function InviteUsers() {
 
                 <div className="space-y-4">
                   <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Rol del Usuario</label>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {ROLES.map((r) => (
                       <button
                         key={r.value}
                         type="button"
                         onClick={() => setRole(r.value)}
                         className={cn(
-                          "flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all gap-2 group",
+                          "flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all gap-2 group min-h-[80px] active:scale-95",
                           role === r.value
                             ? "border-primary bg-primary/10 ring-4 ring-primary/10"
                             : "border-border bg-card/40 hover:border-primary/50"
                         )}
                       >
                         <Shield className={cn("h-6 w-6", role === r.value ? "text-primary" : "text-muted-foreground group-hover:text-primary")} />
-                        <span className={cn("text-[10px] font-black uppercase text-center", role === r.value ? "text-foreground" : "text-muted-foreground")}>{r.label}</span>
+                        <span className={cn("text-[10px] font-black uppercase text-center leading-tight", role === r.value ? "text-foreground" : "text-muted-foreground")}>{r.label}</span>
                       </button>
                     ))}
                   </div>
@@ -316,7 +316,7 @@ export default function InviteUsers() {
                   )}
                 </div>
 
-                <button type="submit" disabled={loading} className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 disabled:opacity-50">
+                <button type="submit" disabled={loading} className="w-full py-4 h-14 bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 disabled:opacity-50 transition-all">
                   {loading ? "..." : "Enviar Invitación"}
                 </button>
              </form>
