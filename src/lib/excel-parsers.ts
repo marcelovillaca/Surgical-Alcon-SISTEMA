@@ -144,11 +144,37 @@ export function parseSalesSheet(sheet: XLSX.WorkSheet): { rows: SalesRow[]; erro
     ).trim();
     if (!fecha || !cliente) return;
 
-    // Determine if an explicit monetary column exists (MONTO USD or MONTO EN)
-    const montoUsdRaw = findValExact(raw, ["MONTO USD", "MONTO FACTURADO", "IMPORTE", "TOTAL USD"]);
-    const hasMonto = montoUsdRaw !== null && montoUsdRaw !== "";
+    // ── Determine columns ────────────────────────────────────────────────────
+    // The user's spreadsheet layout:
+    //   TOTAL     = monetary total for the row (e.g. 68,477 USD)  ← ALWAYS revenue
+    //   MONTO USD = explicit USD amount (may differ from TOTAL if different currency)
+    //   CANT/CANTIDAD = quantity of units
+    //
+    // Priority order for revenue (monto_usd):
+    //   1. MONTO USD (explicit USD column)  — only used when qty column also present
+    //   2. TOTAL                             — fallback / primary when no MONTO USD
+    //
+    // Priority order for quantity (total field in DB — named 'total' for legacy reasons):
+    //   CANT / CANTIDAD / QTY / UNITS       — real unit count
+    //   If none found → 0 (not from TOTAL, to avoid overwriting revenue)
 
-    // Read monto_en from the column — user's file uses "MONTO EN"
+    const totalRaw    = findValExact(raw, ["TOTAL"]);
+    const montoUsdRaw = findValExact(raw, ["MONTO USD", "MONTO FACTURADO", "IMPORTE", "TOTAL USD"]);
+    const cantRaw     = findValExact(raw, ["CANT", "CANTIDAD", "QTY", "UNIDADES", "UNITS", "QTDE"]);
+
+    // Has an explicit unit-qty column (not TOTAL)?
+    const hasQtyCol = cantRaw !== null && cantRaw !== "";
+    // Has an explicit MONTO USD column?
+    const hasMontoUsd = montoUsdRaw !== null && montoUsdRaw !== "";
+
+    // Revenue: prefer MONTO USD only when we can also trust qty separately;
+    // otherwise use TOTAL as revenue (most common in user's sheets)
+    const revenueVal = (hasMontoUsd && hasQtyCol) ? toNum(montoUsdRaw) : toNum(totalRaw);
+
+    // Quantity: use CANT column; if unavailable default to 0 not TOTAL
+    const qtyVal = hasQtyCol ? toNum(cantRaw) : 0;
+
+    // Currency label
     const montoEnRaw = findValExact(raw, ["MONTO EN", "MONEDA", "CURRENCY"]) ||
                        findVal(raw, ["MONTO EN", "MONEDA EN"]);
     const montoEn = montoEnRaw ? String(montoEnRaw).trim() : "USD";
@@ -162,13 +188,11 @@ export function parseSalesSheet(sheet: XLSX.WorkSheet): { rows: SalesRow[]; erro
       ),
       direccion: String(findVal(raw, ["DIRECCION"]) || ""),
       ciudad: String(findVal(raw, ["CIUDAD"]) || ""),
-      // Support both "LINEA" (template) and "LINEA DE PRODUCTO" (user file)
       linea_de_producto: String(
         findValExact(raw, ["LINEA DE PRODUCTO"]) ||
         findVal(raw, ["LINEA", "LINEA PRODUCTO", "LINEA DE PRODUC"]) ||
         ""
       ),
-      // Support "FAC. NRO", "FAC NRO", "FAC"
       factura_nro: String(
         findValExact(raw, ["FAC. NRO", "FAC NRO", "FACTURA NRO", "FACTURA"]) ||
         findVal(raw, ["FAC", "NRO FACTURA"]) ||
@@ -185,21 +209,12 @@ export function parseSalesSheet(sheet: XLSX.WorkSheet): { rows: SalesRow[]; erro
         findVal(raw, ["DESCRIPCION PRODUCTO", "NOMBRE PRODUCTO"]) ||
         ""
       ),
-      costo: toNum(findValExact(raw, ["COSTO"])),
-      // TOTAL: in user files this is the quantity or subtotal — read as-is
-      total: toNum(
-        findValExact(raw, ["CANT", "CANTIDAD", "QTY", "UNIDADES", "UNITS", "QTDE"]) ||
-        (hasMonto ? findValExact(raw, ["TOTAL"]) : null)
-      ),
+      costo:    toNum(findValExact(raw, ["COSTO"])),
+      total:    qtyVal,        // unit quantity (0 if no CANT column)
       monto_en: montoEn,
-      // Monetary total: prefer explicit MONTO USD; fallback to TOTAL if no separate column
-      monto_usd: toNum(
-        montoUsdRaw ||
-        (!hasMonto ? findValExact(raw, ["TOTAL"]) : null) ||
-        findVal(raw, ["MONTO"])
-      ),
+      monto_usd: revenueVal,   // ← monetary total (TOTAL or MONTO USD)
       vendedor: String(findVal(raw, ["VENDEDOR"]) || ""),
-      mercado: String(findVal(raw, ["MERCADO"]) || "Privado")
+      mercado:  String(findVal(raw, ["MERCADO"]) || "Privado")
     });
   });
   return { rows, errors: [] };
