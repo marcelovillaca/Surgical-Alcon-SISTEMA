@@ -152,7 +152,13 @@ export default function VentasTargets() {
 
         for (let i = 0; i < insertRows.length; i += 500) {
           const slice = insertRows.slice(i, i + 500);
-          let { error } = await supabase.from("sales_details").insert(slice as any);
+          // UPSERT: ignoreDuplicates=true means rows that already exist
+          // (same factura_nro + cod_cliente + codigo_producto + fecha) are silently skipped.
+          // This allows safely re-uploading the full file (Jan+Feb+Mar) without creating duplicates.
+          let { error } = await supabase.from("sales_details").upsert(slice as any, {
+            onConflict: "factura_nro,cod_cliente,codigo_producto,fecha",
+            ignoreDuplicates: true,
+          });
 
           if (error && (error.message.includes("mercado") || error.code === "PGRST204")) {
             // Remove mercado from the objects and retry
@@ -160,14 +166,17 @@ export default function VentasTargets() {
               const { mercado, ...rest } = row;
               return rest;
             });
-            const retry = await supabase.from("sales_details").insert(cleanedSlice as any);
+            const retry = await supabase.from("sales_details").upsert(cleanedSlice as any, {
+              onConflict: "factura_nro,cod_cliente,codigo_producto,fecha",
+              ignoreDuplicates: true,
+            });
             error = retry.error;
           }
 
           if (error) throw error;
         }
-        await logAction("IMPORT_DATA", { table: "sales_details", filename: file.name, rows: rows.length }, "sales_imports");
-        setStatusFor(tab, { type: "success", message: `✅ ${rows.length} registros de ventas importados exitosamente.` });
+        await logAction("IMPORT_DATA", { table: "sales_details", filename: file.name, rows: rows.length, mode: "upsert_dedup" }, "sales_imports");
+        setStatusFor(tab, { type: "success", message: `✅ ${rows.length} registros procesados. Nuevos registros añadidos; duplicados ignorados automáticamente.` });
         fetchCounts();
       } else if (tab === "targets") {
         const { rows, errors, warnings } = parseTargetsSheet(ws);
