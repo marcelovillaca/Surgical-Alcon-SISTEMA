@@ -133,9 +133,11 @@ export function useDashboardData(filters: DashboardFilters, includePublic = fals
     const totalVentas = sales.reduce((s, r) => s + Number(r.monto_usd), 0);
     // COSTO (col K) = unit cost per item. CANT (col L) = qty stored in r.total.
     // Total row cost = unit_cost × qty — ALWAYS multiply (user confirmed costo = unit cost).
+    // qty=0 is valid (row with no CANT value) → contributes 0 to cost, not phantom cost.
     const rowCost = (r: SalesRow): number => {
-      const qty = Math.max(Number(r.total) || 1, 1);  // qty from CANT column
-      const refCost = costRefMap[normStr(r.codigo_producto)] ?? costRefMap[normStr(r.producto)];
+      const qty = Number(r.total) || 0;  // qty from CANT column — allow 0
+      if (qty === 0) return 0;
+      const refCost = costRefMap[normStr(r.codigo_produto)] ?? costRefMap[normStr(r.produto)];
       return (refCost != null && refCost > 0)
         ? refCost * qty           // centralized reference cost × qty (most accurate)
         : Number(r.costo) * qty;  // unit cost from file (COSTO col K) × qty (CANT col L)

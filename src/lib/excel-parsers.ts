@@ -196,7 +196,9 @@ export function parseSalesSheet(sheet: XLSX.WorkSheet): { rows: SalesRow[]; erro
       total:    toNum(cantRaw),
       monto_en: montoEn,
       // Revenue in USD (MONTO USD column N) — primary financial metric
-      monto_usd: toNum(montoUsdRaw || findVal(raw, ["MONTO"])),
+      // IMPORTANT: Do NOT fall back to MONTO (col M) which is in Guaraní.
+      // If MONTO USD column not found → 0 (will surface as data issue, not silent wrong value)
+      monto_usd: toNum(montoUsdRaw),
       vendedor: String(findVal(raw, ["VENDEDOR"]) || ""),
       mercado:  String(findVal(raw, ["MERCADO"]) || "Privado")
     });
