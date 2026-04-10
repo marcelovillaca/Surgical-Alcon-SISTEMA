@@ -5,37 +5,18 @@
 /* ── Fonts: Inter body + Playfair Display headings (inspired by DMRI Seca site) ── */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:wght@400;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
-/* Custom Scrollbar - High Visibility Alcon Style */
-::-webkit-scrollbar {
-  width: 10px; /* Wider for better grab */
-  height: 10px;
-}
-
-::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 10px;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #00a88e; /* Solid Alcon Emerald */
-  border-radius: 10px;
-  border: 2px solid #000; /* Contrast border */
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #00c4a7;
-}
-
-/* Ensure EVERYTHING is scrollable */
-html, body {
-  overflow-y: auto !important;
+/* ── FORCED SCROLLBAR VISIBILITY ── */
+/* If everything else fails, this forces the browser default scrollbar */
+html, body, #root {
+  overflow-y: scroll !important;
   height: auto !important;
-  min-height: 100vh;
+  min-height: 100% !important;
+  position: relative;
 }
 
-/* Fix global animation locking scroll */
-.animate-slide-in {
-  overflow: visible !important;
+/* Ensure the main layout doesn't trap scroll */
+#root > div {
+  height: auto !important;
 }
 
 @layer base {
