@@ -423,29 +423,29 @@ export default function Visitas() {
   );
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 animate-slide-in">
+    <div className="grid grid-cols-1 xl:grid-cols-4 gap-5 animate-slide-in">
       <div className="xl:col-span-3 space-y-5">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-display font-bold text-foreground">
             {isGerente ? "Gestión de Visitas" : "Mi Agenda"}
           </h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-xs sm:text-sm text-muted-foreground">
             {isGerente ? "Aprobación y seguimiento del equipo" : "Programa y registra tus visitas"}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
           <div className="flex rounded-lg border border-border overflow-hidden">
-            <button onClick={() => setViewMode("day")} className={cn("px-3 py-2 text-xs font-medium transition-colors", viewMode === "day" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}>Día</button>
-            <button onClick={() => setViewMode("week")} className={cn("px-3 py-2 text-xs font-medium transition-colors", viewMode === "week" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}>Semana</button>
-            <button onClick={() => setViewMode("month")} className={cn("px-3 py-2 text-xs font-medium transition-colors flex items-center gap-1", viewMode === "month" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}>
-              <Maximize2 className="h-3 w-3" /> Mes
+            <button onClick={() => setViewMode("day")} className={cn("px-3 py-2.5 text-xs font-medium transition-colors", viewMode === "day" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}>Día</button>
+            <button onClick={() => setViewMode("week")} className={cn("px-3 py-2.5 text-xs font-medium transition-colors", viewMode === "week" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}>Semana</button>
+            <button onClick={() => setViewMode("month")} className={cn("px-3 py-2.5 text-xs font-medium transition-colors flex items-center gap-1", viewMode === "month" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}>
+              <Maximize2 className="h-3 w-3" /> <span className="hidden sm:inline">Mes</span>
             </button>
           </div>
           {!isGerente && (
-            <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-2 rounded-xl gradient-gold px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-all hover:opacity-90 shadow-lg">
-              <Plus className="h-4 w-4" /> Nueva Visita
+            <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-2 rounded-xl gradient-gold px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-all hover:opacity-90 shadow-lg active:scale-95">
+              <Plus className="h-4 w-4" /> <span className="hidden sm:inline">Nueva Visita</span><span className="sm:hidden">Visita</span>
             </button>
           )}
         </div>
@@ -532,31 +532,31 @@ export default function Visitas() {
         <button onClick={() => setSelectedDate(today)} className="rounded-lg border border-border bg-card px-3 py-2.5 text-xs font-medium text-foreground hover:bg-muted transition-colors">Hoy</button>
       </div>
 
-  // Stats
-      <div className="grid grid-cols-5 gap-2">
+  {/* Stats */}
+      <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
         {[
-          { label: "Programadas", value: totalVisits, color: "text-foreground" },
-          { label: "Aprobadas", value: approvedCount, color: "text-secondary" },
+          { label: "Program.", value: totalVisits, color: "text-foreground" },
+          { label: "Aprobadas", value: approvedCount, color: "text-emerald-400" },
           { label: "Pendientes", value: pendingCount, color: "text-primary" },
           { label: "Atrasadas", value: delayedCount, color: "text-destructive" },
-          { label: "Completadas", value: completedCount, color: "text-foreground" },
+          { label: "Completas", value: completedCount, color: "text-muted-foreground" },
         ].map((s) => (
           <div key={s.label} className="rounded-xl border border-border bg-card p-2 text-center">
-            <p className={cn("text-lg font-display font-bold", s.color)}>{s.value}</p>
-            <p className="text-[9px] uppercase tracking-widest text-muted-foreground">{s.label}</p>
+            <p className={cn("text-xl font-display font-bold", s.color)}>{s.value}</p>
+            <p className="text-[9px] uppercase tracking-wide text-muted-foreground">{s.label}</p>
           </div>
         ))}
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-2 items-center">
-        <Filter className="h-3.5 w-3.5 text-muted-foreground" />
-        <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="rounded-lg border border-border bg-card px-3 py-1.5 text-xs text-foreground outline-none focus:ring-1 focus:ring-primary">
+      <div className="flex gap-2 items-center overflow-x-auto pb-1 scrollbar-none">
+        <Filter className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground outline-none focus:ring-1 focus:ring-primary shrink-0 h-9">
           <option value="todos">Todos los tipos</option>
           {visitTypes.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
         </select>
-        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="rounded-lg border border-border bg-card px-3 py-1.5 text-xs text-foreground outline-none focus:ring-1 focus:ring-primary">
-          <option value="todos">Todos los estados</option>
+        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground outline-none focus:ring-1 focus:ring-primary shrink-0 h-9">
+          <option value="todos">Todos estados</option>
           <option value="pendiente">Pendiente</option>
           <option value="aprobada">Aprobada</option>
           <option value="atrasada">Atrasada</option>
@@ -564,7 +564,7 @@ export default function Visitas() {
           <option value="completada">Completada</option>
         </select>
         {isGerente && (
-          <select value={filterVisitor} onChange={(e) => setFilterVisitor(e.target.value)} className="rounded-lg border border-border bg-card px-3 py-1.5 text-xs text-foreground outline-none focus:ring-1 focus:ring-primary ml-auto">
+          <select value={filterVisitor} onChange={(e) => setFilterVisitor(e.target.value)} className="rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground outline-none focus:ring-1 focus:ring-primary ml-auto shrink-0 h-9">
             <option value="todos">Todos los visitadores</option>
             {visitors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
           </select>
@@ -633,21 +633,21 @@ export default function Visitas() {
                   <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-2 block">
                     Tipo de Visita * <span className="text-destructive">(obligatorio)</span>
                   </label>
-                  <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                     {visitTypes.map((t) => {
                       const Icon = t.icon;
                       const isSelected = entry.type === t.key;
                       return (
                         <button key={t.key} onClick={() => updateEntry(idx, "type", t.key)}
                           className={cn(
-                            "rounded-lg border-2 p-2.5 text-left transition-all",
+                            "rounded-xl border-2 p-3 text-left transition-all active:scale-[0.98]",
                             isSelected ? t.color + " border-current shadow-sm" : "border-border hover:border-muted-foreground bg-background"
                           )}>
                           <div className="flex items-center gap-2">
-                            <Icon className="h-4 w-4 shrink-0" />
+                            <Icon className="h-5 w-5 shrink-0" />
                             <div className="min-w-0">
-                              <p className={cn("text-xs font-semibold truncate", isSelected ? "" : "text-foreground")}>{t.label}</p>
-                              <p className="text-[10px] text-muted-foreground truncate">{t.desc}</p>
+                              <p className={cn("text-xs font-semibold", isSelected ? "" : "text-foreground")}>{t.label}</p>
+                              <p className="text-[10px] text-muted-foreground">{t.desc}</p>
                             </div>
                           </div>
                         </button>
@@ -713,10 +713,10 @@ export default function Visitas() {
             )}
           </div>
 
-          <div className="flex gap-3 justify-end pt-2">
-            <button onClick={resetForm} className="px-5 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted transition-colors">Cancelar</button>
+          <div className="flex flex-col sm:flex-row gap-3 pt-2">
+            <button onClick={resetForm} className="flex-1 sm:flex-none px-5 h-12 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted transition-colors">Cancelar</button>
             <button onClick={handleCreateVisits} disabled={submitting || formEntries.every((e) => !e.clientId || !e.type)}
-              className="flex items-center gap-2 px-6 py-2.5 rounded-xl gradient-gold text-sm font-bold text-primary-foreground transition-all hover:opacity-90 disabled:opacity-50 shadow-lg">
+              className="flex-1 flex items-center justify-center gap-2 h-12 rounded-xl gradient-gold text-sm font-bold text-primary-foreground transition-all hover:opacity-90 disabled:opacity-50 shadow-lg active:scale-[0.98]">
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               Enviar {formEntries.filter((e) => e.clientId && e.type).length} visita(s)
             </button>
@@ -949,28 +949,28 @@ export default function Visitas() {
                       </div>
                     )}
 
-                    <div className="mt-3 flex gap-2 flex-wrap">
+                    <div className="mt-3 flex flex-col sm:flex-row gap-2">
                       {!isGerente && isDelayed && (
-                        <button onClick={() => setJustifyingVisit(v)} className="flex items-center gap-1.5 rounded-xl bg-destructive px-4 py-2 text-xs font-bold text-white hover:opacity-90 shadow-md">
+                        <button onClick={() => setJustifyingVisit(v)} className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-destructive h-11 text-xs font-bold text-white hover:opacity-90 shadow-md active:scale-[0.98]">
                           <AlertTriangle className="h-3 w-3" /> Justificar Atraso
                         </button>
                       )}
                       {!isGerente && isApproved && !v.check_in_at && !isDelayed && (
-                        <button onClick={() => handleCheckIn(v.id)} className="flex items-center gap-1.5 rounded-xl bg-secondary px-4 py-2 text-xs font-bold text-secondary-foreground hover:opacity-90 transition-all shadow-md">
-                          <Navigation className="h-3 w-3" /> Check-in
+                        <button onClick={() => handleCheckIn(v.id)} className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 h-11 text-xs font-bold text-white hover:opacity-90 transition-all shadow-md active:scale-[0.98]">
+                          <Navigation className="h-4 w-4" /> Check-in 📍
                         </button>
                       )}
                       {!isGerente && isActive && (
-                        <button onClick={() => handleCheckOut(v.id)} className="flex items-center gap-1.5 rounded-xl gradient-gold px-4 py-2 text-xs font-bold text-primary-foreground hover:opacity-90 transition-all shadow-md animate-pulse">
-                          <Navigation className="h-3 w-3" /> Check-out
+                        <button onClick={() => handleCheckOut(v.id)} className="flex-1 flex items-center justify-center gap-1.5 rounded-xl gradient-gold h-11 text-xs font-bold text-primary-foreground hover:opacity-90 transition-all shadow-md animate-pulse active:scale-[0.98]">
+                          <Navigation className="h-4 w-4" /> Check-out ✔️
                         </button>
                       )}
                       {isGerente && (isPending || isDelayed) && (
                         <>
-                          <button onClick={() => handleApprove(v.id, true)} className="flex items-center gap-1.5 rounded-xl bg-secondary px-4 py-2 text-xs font-bold text-secondary-foreground hover:opacity-90 shadow-md">
+                          <button onClick={() => handleApprove(v.id, true)} className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 h-11 text-xs font-bold text-white hover:opacity-90 shadow-md">
                             <Check className="h-3 w-3" /> Aprobar
                           </button>
-                          <button onClick={() => handleApprove(v.id, false)} className="flex items-center gap-1.5 rounded-xl bg-destructive/10 border border-destructive/20 px-4 py-2 text-xs font-bold text-destructive hover:bg-destructive/20">
+                          <button onClick={() => handleApprove(v.id, false)} className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-destructive/10 border border-destructive/20 h-11 text-xs font-bold text-destructive hover:bg-destructive/20">
                             <X className="h-3 w-3" /> Rechazar
                           </button>
                         </>
