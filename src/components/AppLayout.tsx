@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Package, Users, ClipboardList, MapPin, Truck,
   TrendingUp, Settings, ChevronLeft, ChevronRight, LogOut, Shield,
   FileDown, FileText, BarChart2, PieChart, ClipboardCheck, UserCog,
-  BarChart3, Menu, X, Home, Warehouse,
+  BarChart3, Menu, X, Home, Warehouse, Activity,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -28,6 +28,7 @@ const menuGroups: Record<"alcon" | "conofta", MenuGroup[]> = {
         { to: "/crm", icon: Users, label: "CRM & Clientes", roles: ["gerente", "visitador"] },
         { to: "/pedidos", icon: ClipboardList, label: "Pedidos", roles: ["gerente", "visitador", "bodega", "expedicion"] },
         { to: "/visitas", icon: MapPin, label: "Visitas (SFA)", roles: ["gerente", "visitador"] },
+        { to: "/sfa/admin", icon: Activity, label: "Consola SFA", roles: ["gerente"] },
       ],
     },
     {
