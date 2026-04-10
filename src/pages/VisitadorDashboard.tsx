@@ -193,28 +193,28 @@ export default function VisitadorDashboard() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in pb-10">
+    <div className="space-y-5 animate-fade-in pb-10">
 
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-3">
         <div>
           <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">
             Mi Dashboard · {monthStr}
           </p>
-          <h1 className="text-3xl font-display font-bold text-white tracking-tight flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+          <h1 className="text-2xl sm:text-3xl font-display font-bold text-white tracking-tight flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
               <TrendingUp className="h-5 w-5 text-primary" />
             </div>
             Hola, {userName.split(" ")[0]} 👋
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Aquí están tus métricas del mes — solo lo que necesitas saber.
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
+            Métricas del mes — solo lo que necesitas saber.
           </p>
         </div>
       </div>
 
       {/* KPIs principales */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard
           label="Facturado este mes"
           value={fmt(salesMonth)}
@@ -225,7 +225,7 @@ export default function VisitadorDashboard() {
         <StatCard
           label={`Target ${quarterName}`}
           value={fmt(targetQuarter)}
-          sub="Máximo visible — no acumulado"
+          sub="No acumulado"
           color="text-amber-400"
           icon={Target}
         />
@@ -239,7 +239,7 @@ export default function VisitadorDashboard() {
         <StatCard
           label="Cobertura de base"
           value={`${visitCoverage}%`}
-          sub={`${clients.length} clientes asignados`}
+          sub={`${clients.length} clientes`}
           color="text-purple-400"
           icon={Users}
         />
@@ -290,10 +290,10 @@ export default function VisitadorDashboard() {
               { label: "Atrasadas",    value: visitStats.delayed,   color: "text-rose-400 bg-rose-500/10 border-rose-500/20 animate-pulse", icon: AlertTriangle },
               { label: "Total prog.",  value: visitStats.total,     color: "text-blue-400 bg-blue-500/10 border-blue-500/20",          icon: MapPin },
             ].map(s => (
-              <div key={s.label} className={cn("rounded-xl border p-3 flex items-center gap-3", s.color)}>
-                <s.icon className="h-4 w-4 shrink-0" />
+              <div key={s.label} className={cn("rounded-xl border p-3 sm:p-4 flex items-center gap-3", s.color)}>
+                <s.icon className="h-5 w-5 shrink-0" />
                 <div>
-                  <p className="text-xl font-display font-bold">{s.value}</p>
+                  <p className="text-2xl font-display font-bold">{s.value}</p>
                   <p className="text-[10px] opacity-70">{s.label}</p>
                 </div>
               </div>
@@ -339,14 +339,14 @@ export default function VisitadorDashboard() {
           {visitTypeBreakdown.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">Sin visitas registradas este mes</p>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {visitTypeBreakdown.map(([type, count]) => (
-                <div key={type} className="flex items-center gap-3 p-3 rounded-xl border border-white/5 bg-white/[0.02]">
-                  <div className="h-8 w-8 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
+                <div key={type} className="flex items-center gap-3 p-3 sm:p-4 rounded-xl border border-white/5 bg-white/[0.02] active:bg-white/5 transition-colors">
+                  <div className="h-9 w-9 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
                     <Briefcase className="h-4 w-4 text-amber-400" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-xs font-bold text-foreground">{count}</p>
+                    <p className="text-base font-display font-bold text-foreground">{count}</p>
                     <p className="text-[10px] text-muted-foreground truncate">{typeLabels[type] || type}</p>
                   </div>
                 </div>

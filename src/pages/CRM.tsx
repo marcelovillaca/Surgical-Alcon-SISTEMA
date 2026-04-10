@@ -281,24 +281,24 @@ export default function CRM() {
   }));
 
   return (
-    <div className="space-y-6 animate-slide-in">
-      <div className="flex items-center justify-between">
+    <div className="space-y-5 animate-slide-in">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-display font-bold text-foreground">CRM & Clientes</h1>
-          <p className="text-sm text-muted-foreground">Segmentación, Pricing y relación Médico-Institución</p>
+          <p className="text-xs sm:text-sm text-muted-foreground">Segmentación, Pricing y relación Médico-Institución</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {isGerente && (
-            <button onClick={() => setShowBulkImport(true)} className="flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-4 py-2.5 text-sm font-medium text-primary hover:bg-primary/10 transition-colors">
+            <button onClick={() => setShowBulkImport(true)} className="flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/10 transition-colors">
               <Plus className="h-4 w-4" />
-              Carga Masiva (Excel)
+              <span className="hidden sm:inline">Carga Masiva</span>
             </button>
           )}
-          <button onClick={() => setShowNewInst(true)} className="flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 text-sm font-medium text-foreground hover:bg-muted transition-colors">
+          <button onClick={() => setShowNewInst(true)} className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm font-medium text-foreground hover:bg-muted transition-colors">
             <Building className="h-4 w-4" />
-            Nueva Institución
+            <span className="hidden sm:inline">Nueva Institución</span>
           </button>
-          <button onClick={() => setShowNewClient(true)} className="flex items-center gap-2 rounded-lg gradient-gold px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90">
+          <button onClick={() => setShowNewClient(true)} className="flex items-center gap-2 rounded-xl gradient-gold px-4 py-2 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90">
             <Plus className="h-4 w-4" />
             Nuevo Cliente
           </button>
@@ -429,14 +429,14 @@ export default function CRM() {
       </div>
 
       {/* Search and Filters */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="relative flex-1 max-w-md">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="relative flex-1 sm:max-w-md">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Busque por código, nombre, segmento o ciudad..."
-            className="w-full rounded-xl border border-border bg-card py-2.5 pl-10 pr-4 text-sm text-foreground shadow-sm placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+            placeholder="Código, nombre, ciudad..."
+            className="w-full rounded-xl border border-border bg-card h-12 pl-10 pr-4 text-sm text-foreground shadow-sm placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/20 outline-none transition-all"
           />
         </div>
 
@@ -496,8 +496,8 @@ export default function CRM() {
         </div>
       )}
 
-      {/* Table */}
-      <div className="overflow-x-auto rounded-xl border border-border bg-card">
+      {/* DESKTOP: Table */}
+      <div className="hidden lg:block overflow-x-auto rounded-xl border border-border bg-card">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border text-left">
@@ -573,6 +573,83 @@ export default function CRM() {
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* MOBILE: Client Cards */}
+      <div className="lg:hidden space-y-3">
+        {loading && (
+          <div className="flex items-center justify-center py-12">
+            <div className="h-6 w-6 rounded-lg bg-primary/20 animate-pulse" />
+          </div>
+        )}
+        {!loading && filtered.length === 0 && (
+          <div className="text-center py-12 text-muted-foreground text-sm">Sin resultados</div>
+        )}
+        {!loading && filtered.map((c) => (
+          <div key={c.id} className="rounded-2xl border border-border/50 bg-card/80 overflow-hidden ring-1 ring-white/5">
+            <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-white/5">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className={cn(
+                  "h-10 w-10 rounded-full flex items-center justify-center font-black text-sm border-2 shrink-0",
+                  c.pricing_level === "A" ? "border-amber-400 bg-amber-400/10 text-amber-400" :
+                  c.pricing_level === "B" ? "border-emerald-400 bg-emerald-400/10 text-emerald-400" :
+                  c.pricing_level === "C" ? "border-blue-400 bg-blue-400/10 text-blue-400" :
+                  "border-border bg-muted/20 text-muted-foreground"
+                )}>{c.pricing_level}</div>
+                <div className="min-w-0">
+                  <p className="font-bold text-foreground text-sm truncate">{c.name}</p>
+                  <p className="text-[11px] text-muted-foreground">{c.city || "—"} · <span className="capitalize">{c.segment.replace("_", " ")}</span></p>
+                </div>
+              </div>
+              {c.cod_cliente && (
+                <span className="text-[10px] font-mono font-bold text-primary/70 border border-primary/20 bg-primary/5 px-2 py-1 rounded-lg shrink-0 ml-2">
+                  {c.cod_cliente}
+                </span>
+              )}
+            </div>
+            <div className="px-4 py-3 space-y-2 text-[11px]">
+              {c.visit_frequency && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-muted-foreground">Frec.:</span>
+                  <span className="font-semibold">{freqLabels[c.visit_frequency] || c.visit_frequency}</span>
+                </div>
+              )}
+              {c.contact_name && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-muted-foreground">Contacto:</span>
+                  <span className="truncate">{c.contact_name}</span>
+                </div>
+              )}
+              {c.institutions.length > 0 && (
+                <div className="flex items-start gap-1.5">
+                  <Building className="h-3 w-3 text-muted-foreground mt-0.5 shrink-0" />
+                  <div className="flex flex-wrap gap-1">
+                    {c.institutions.map((inst) => (
+                      <span key={inst.id} className="inline-flex items-center gap-1 rounded-full bg-secondary/10 px-2 py-0.5 text-[10px] font-medium text-secondary">
+                        {inst.name}
+                        <button onClick={() => handleUnlink(c.id, inst.id)} className="ml-0.5 hover:text-destructive"><X className="h-2.5 w-2.5" /></button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="flex border-t border-white/5">
+              <button
+                onClick={() => startEdit(c)}
+                className="flex-1 h-11 flex items-center justify-center gap-2 text-xs font-bold text-secondary hover:bg-secondary/10 transition-colors border-r border-white/5"
+              >
+                Editar
+              </button>
+              <button
+                onClick={() => setLinkClientId(c.id)}
+                className="flex-1 h-11 flex items-center justify-center gap-2 text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors"
+              >
+                <Link2 className="h-3.5 w-3.5" /> Vincular Inst.
+              </button>
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* Bulk Import Modal */}
