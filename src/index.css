@@ -84,6 +84,9 @@
     scroll-behavior: smooth;
     /* Prevent overscroll bounce on iOS */
     overscroll-behavior: none;
+    /* Ensure scroll is never blocked */
+    overflow-x: hidden;
+    overflow-y: auto;
   }
 
   body {
@@ -93,6 +96,15 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
+    /* Never block vertical scroll */
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  /* Root element never clips */
+  #root {
+    min-height: 100vh;
+    overflow-x: hidden;
   }
 
   /* Headings use display font (Playfair Display for premium feel) */

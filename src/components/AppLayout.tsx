@@ -320,7 +320,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* ─── MAIN CONTENT ─── */}
       <main
         className={cn(
-          "flex-1 flex flex-col h-screen transition-all duration-300",
+          "flex-1 flex flex-col min-h-screen transition-all duration-300",
           "ml-0 md:ml-[260px]",
           collapsed && "md:ml-[68px]"
         )}
@@ -359,13 +359,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </header>
 
         {/* Page Content */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 pb-20 md:pb-6">
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 pb-24 md:pb-8">
           {children}
         </div>
 
-        {/* ─── MOBILE BOTTOM NAV ─── */}
         <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-sidebar/95 backdrop-blur-lg">
-          <div className="flex items-center justify-around px-2 py-1 safe-area-inset-bottom">
+          <div className="flex items-center justify-around px-2 py-1" style={{ paddingBottom: 'env(safe-area-inset-bottom, 8px)' }}>
             {bottomNavItems.map((item) => (
               <NavLink
                 key={item.to}
@@ -373,7 +372,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 end={item.to === "/"}
                 className={({ isActive }) =>
                   cn(
-                    "flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all min-w-[60px]",
+                    "flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl transition-all min-w-[56px] touch-manipulation",
                     isActive
                       ? "text-primary"
                       : "text-muted-foreground"
@@ -388,7 +387,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     )}>
                       <item.icon className="h-5 w-5" />
                     </div>
-                    <span className="text-[9px] font-semibold truncate max-w-[64px] text-center leading-tight">
+                    <span className="text-[9px] font-semibold truncate max-w-[60px] text-center leading-tight">
                       {item.label.split(" ")[0]}
                     </span>
                   </>
@@ -398,7 +397,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             {/* More / Menu button */}
             <button
               onClick={() => setMobileOpen(true)}
-              className="flex flex-col items-center gap-1 px-3 py-2 rounded-xl text-muted-foreground transition-all min-w-[60px]"
+              className="flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl text-muted-foreground transition-all min-w-[56px] touch-manipulation"
             >
               <div className="p-1.5 rounded-lg">
                 <Menu className="h-5 w-5" />
