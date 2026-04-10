@@ -623,8 +623,8 @@ export default function ConoftaLista() {
         )}
       </div>
 
-      {/* ── Tabela ───────────────────────────────────────────────────────── */}
-      <Card className="border-border/50 bg-card/80 overflow-hidden shadow-2xl ring-1 ring-white/5">
+      {/* ── DESKTOP: Tabela ──────────────────────────────────────────────── */}
+      <Card className="hidden lg:block border-border/50 bg-card/80 overflow-hidden shadow-2xl ring-1 ring-white/5">
             {loading && (
               <div className="flex items-center justify-center h-24">
                 <div className="h-6 w-6 rounded-lg gradient-emerald animate-pulse" />
@@ -870,6 +870,146 @@ export default function ConoftaLista() {
               </div>
             )}
           </Card>
+
+      {/* ── MOBILE: Cards ────────────────────────────────────────────────── */}
+      <div className="lg:hidden space-y-3">
+        {loading && (
+          <div className="flex items-center justify-center h-24">
+            <div className="h-6 w-6 rounded-lg gradient-emerald animate-pulse" />
+          </div>
+        )}
+        {!loading && filteredEntries.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-16 gap-3">
+            <Users className="h-10 w-10 text-zinc-700" />
+            <p className="text-sm text-muted-foreground text-center">No hay pacientes activos con los filtros actuales</p>
+            <Button variant="ghost" size="sm" className="text-xs h-10"
+              onClick={() => { setSelectedStatus("all"); setSearchTerm(""); setSelectedInstitution("all"); }}>
+              Limpiar filtros
+            </Button>
+          </div>
+        )}
+        {!loading && filteredEntries.map((entry) => {
+          const action = getNextAction(entry);
+          const days   = getDaysInStatus(entry);
+          const isApto = isEntryApto(entry);
+          return (
+            <div key={entry.id} className={cn("rounded-2xl border border-border/50 bg-card/80 overflow-hidden shadow-lg ring-1 ring-white/5", ROW_BG[entry.status])}>
+              {/* Card Header */}
+              <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-white/5">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="h-10 w-10 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-300 font-black text-sm border border-white/10 shrink-0">
+                    {entry.patient?.firstname?.[0]}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-bold text-foreground text-sm leading-tight truncate">
+                      {entry.patient?.firstname} {entry.patient?.lastname}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{getInstitutionName(entry.institution_id)}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0 ml-2">
+                  {getDaysBadge(days, entry.status)}
+                  <Badge variant="outline" className={cn("text-[9px] font-bold whitespace-nowrap", STATUS_META[entry.status].badgeClass)}>
+                    {STATUS_META[entry.status].label}
+                  </Badge>
+                </div>
+              </div>
+
+              {/* Card Body */}
+              <div className="px-4 py-3 grid grid-cols-2 gap-x-4 gap-y-2.5 text-[11px]">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-muted-foreground">Ojo:</span>
+                  <Badge className={cn("text-[9px] font-black h-5 px-1.5",
+                    entry.target_eye === "OD" ? "bg-blue-500/10 text-blue-400 border-blue-500/20" : "bg-purple-500/10 text-purple-400 border-purple-500/20"
+                  )}>{entry.target_eye || "—"}</Badge>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-muted-foreground">CI:</span>
+                  <span className="font-mono text-zinc-300 text-[11px] truncate">
+                    {showSensitive[entry.id!] ? entry.patient?.cedula : maskData(entry.patient?.cedula)}
+                  </span>
+                  <button onClick={() => toggleSensitive(entry.id!)} className="text-muted-foreground p-1 shrink-0">
+                    {showSensitive[entry.id!] ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                  </button>
+                </div>
+                {(entry as any).surgeon?.name && (
+                  <div className="flex items-center gap-1.5 col-span-2">
+                    <User className="h-3 w-3 text-primary/60 shrink-0" />
+                    <span className="text-foreground font-semibold truncate">{(entry as any).surgeon?.name}</span>
+                  </div>
+                )}
+                {entry.surgery_date && (
+                  <div className="flex items-center gap-1.5">
+                    <Calendar className="h-3 w-3 text-blue-400 shrink-0" />
+                    <span className="text-blue-400 font-bold">{format(parseISO(entry.surgery_date), "dd/MM/yy")}</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-1.5">
+                  {entry.has_diabetes && <Droplets className="h-3.5 w-3.5 text-rose-500" />}
+                  {entry.has_hipertensao && <Heart className="h-3.5 w-3.5 text-orange-500" />}
+                  {entry.has_anticoagulados && <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />}
+                  {!entry.has_diabetes && !entry.has_hipertensao && !entry.has_anticoagulados && (
+                    <span className="text-zinc-700 text-[10px]">Sin alertas</span>
+                  )}
+                </div>
+                {entry.status === "informado" && (
+                  <div className="col-span-2 flex items-center gap-1.5 flex-wrap">
+                    <span className="text-muted-foreground">Pre-Op:</span>
+                    {[
+                      { key: "exam_hemograma", lbl: "H" },
+                      { key: "exam_glicemia", lbl: "G" },
+                      { key: "exam_hba1c", lbl: "A1c" },
+                      { key: "exam_crasis", lbl: "C" },
+                      { key: "exam_orina", lbl: "O" },
+                    ].map(ex => (
+                      <button key={ex.key}
+                        onClick={() => updateExam(entry.id!, ex.key, !(entry as any)[ex.key], entry.status)}
+                        className={cn("h-7 min-w-[28px] rounded px-1.5 text-[10px] font-bold border transition-all active:scale-95",
+                          (entry as any)[ex.key] ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40" : "bg-zinc-800/50 text-zinc-600 border-white/5"
+                        )}
+                      >{ex.lbl}</button>
+                    ))}
+                    <span className="text-[10px] text-zinc-600">
+                      {[entry.exam_hemograma, entry.exam_glicemia, entry.exam_hba1c, entry.exam_crasis, entry.exam_orina].filter(Boolean).length}/5
+                    </span>
+                  </div>
+                )}
+                {(entry.status === "apto" || (entry.status !== "informado" && isApto)) && (
+                  <div className="col-span-2 flex items-center gap-1.5">
+                    <CheckCheck className="h-4 w-4 text-emerald-400" />
+                    <span className="text-emerald-400 font-bold text-[11px]">Exámenes Pre-Op OK</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Card Footer — Ação principal mobile */}
+              {action && (
+                <div className="px-4 pb-4 pt-1 flex gap-2">
+                  {(action as any).hasEdit && (
+                    <Button variant="outline" size="sm" className="h-12 w-12 p-0 border-white/10 shrink-0 rounded-xl" onClick={() => setSelectedEntry(entry)}>
+                      <RefreshCw className="h-4 w-4" />
+                    </Button>
+                  )}
+                  {!action.disabled ? (
+                    <Button
+                      className={cn("flex-1 h-12 gap-2 text-sm font-bold rounded-xl border transition-all active:scale-[0.98]", action.color)}
+                      variant="ghost"
+                      onClick={() => advanceStatus(entry)}
+                    >
+                      {action.icon}
+                      {action.label}
+                    </Button>
+                  ) : (
+                    <div className={cn("flex-1 h-12 flex items-center justify-center rounded-xl border text-sm font-bold", action.color)}>
+                      {action.label}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
 
       {/* ── Modals ───────────────────────────────────────────────────────── */}
       <MovePatientModal

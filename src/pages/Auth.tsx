@@ -190,16 +190,16 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 overflow-y-auto py-12">
-      <div className="w-full max-w-md space-y-6 animate-fade-in">
+    <div className="min-h-dvh bg-background flex flex-col items-center justify-center px-4 py-safe overflow-y-auto">
+      <div className="w-full max-w-md space-y-6 animate-fade-in py-10">
 
         {/* Logo */}
         <div className="text-center">
-          <div className="mx-auto h-20 w-20 mb-4">
-            <img src="/logo.png" alt="Surgical Logo" className="w-full h-full object-contain" />
+          <div className="mx-auto h-24 w-24 mb-5 drop-shadow-lg">
+            <img src="/logo.png" alt="Surgical Alcon" className="w-full h-full object-contain" />
           </div>
-          <h1 className="text-2xl font-display font-bold text-foreground">Surgical Portal</h1>
-          <p className="text-sm text-muted-foreground mt-1">Gestión Quirúrgica Alcon</p>
+          <h1 className="text-3xl font-display font-black text-foreground tracking-tight">Surgical Portal</h1>
+          <p className="text-sm text-muted-foreground mt-1.5">Gestión Quirúrgica Alcon</p>
         </div>
 
         {/* Blocked alert */}
@@ -221,29 +221,29 @@ export default function Auth() {
               <button
                 onClick={() => { setMode("login"); setError(""); setMessage(""); }}
                 className={cn(
-                  "flex-1 flex items-center justify-center gap-2 py-3.5 text-xs font-bold transition-all",
+                  "flex-1 flex items-center justify-center gap-2 py-4 text-sm font-bold transition-all",
                   mode === "login"
                     ? "bg-primary/10 text-primary border-b-2 border-primary"
                     : "text-muted-foreground hover:bg-white/5"
                 )}
               >
-                <LogIn className="h-3.5 w-3.5" /> Entrar
+                <LogIn className="h-4 w-4" /> Entrar
               </button>
               <button
                 onClick={() => { setMode("register"); setError(""); setMessage(""); }}
                 className={cn(
-                  "flex-1 flex items-center justify-center gap-2 py-3.5 text-xs font-bold transition-all",
+                  "flex-1 flex items-center justify-center gap-2 py-4 text-sm font-bold transition-all",
                   mode === "register"
                     ? "bg-blue-500/10 text-blue-400 border-b-2 border-blue-500"
                     : "text-muted-foreground hover:bg-white/5"
                 )}
               >
-                <KeyRound className="h-3.5 w-3.5" /> Primer Acceso
+                <KeyRound className="h-4 w-4" /> Primer Acceso
               </button>
             </div>
           )}
 
-          <div className="p-6">
+          <div className="p-5 sm:p-6">
 
             {/* ── LOGIN ── */}
             {mode === "login" && (
@@ -251,39 +251,45 @@ export default function Auth() {
                 <div>
                   <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Email</label>
                   <input
-                    type="email" value={email}
+                    type="email"
+                    inputMode="email"
+                    autoComplete="email"
+                    autoCapitalize="none"
+                    value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="usuario@alcon.com"
-                    className="mt-1.5 w-full rounded-xl border border-border bg-background/50 px-4 py-3 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary transition-all"
+                    className="mt-2 w-full rounded-xl border border-border bg-background/50 px-4 h-14 text-base text-foreground outline-none focus:ring-2 focus:ring-primary transition-all"
                     required
                   />
                 </div>
                 <div>
                   <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Contraseña</label>
-                  <div className="relative mt-1.5">
+                  <div className="relative mt-2">
                     <input
-                      type={showPass ? "text" : "password"} value={password}
+                      type={showPass ? "text" : "password"}
+                      autoComplete="current-password"
+                      value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="w-full rounded-xl border border-border bg-background/50 px-4 py-3 pr-11 text-sm focus:ring-1 focus:ring-primary outline-none transition-all"
+                      className="w-full rounded-xl border border-border bg-background/50 px-4 h-14 pr-14 text-base focus:ring-2 focus:ring-primary outline-none transition-all"
                       required
                     />
                     <button type="button" onClick={() => setShowPass(p => !p)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                      {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      className="absolute right-0 top-0 h-14 w-14 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
+                      {showPass ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                     </button>
                   </div>
-                  <div className="mt-2 text-right">
-                    <button type="button" onClick={() => setMode("forgot")} className="text-[10px] text-muted-foreground hover:text-primary transition-colors">
+                  <div className="mt-2.5 text-right">
+                    <button type="button" onClick={() => setMode("forgot")} className="text-xs text-muted-foreground hover:text-primary transition-colors py-1">
                       ¿Olvidaste tu contraseña?
                     </button>
                   </div>
                 </div>
-                {error   && <div className="text-xs text-rose-400 bg-rose-500/5 border border-rose-500/20 rounded-xl p-3">{error}</div>}
-                {message && <div className="text-xs text-emerald-400 bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-3">{message}</div>}
+                {error   && <div className="text-sm text-rose-400 bg-rose-500/5 border border-rose-500/20 rounded-xl p-3.5">{error}</div>}
+                {message && <div className="text-sm text-emerald-400 bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-3.5">{message}</div>}
                 <button type="submit" disabled={loading}
-                  className="w-full rounded-xl bg-blue-600 hover:bg-blue-500 py-3 text-sm font-bold text-white transition-all disabled:opacity-50 mt-2 shadow-lg">
-                  {loading ? "Ingresando..." : "Entrar"}
+                  className="w-full rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-[0.98] h-14 text-base font-bold text-white transition-all disabled:opacity-50 mt-1 shadow-lg shadow-blue-500/20">
+                  {loading ? <span className="flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Ingresando...</span> : "Entrar"}
                 </button>
               </form>
             )}
@@ -292,24 +298,28 @@ export default function Auth() {
             {mode === "forgot" && (
               <form onSubmit={handleForgotPassword} className="space-y-4">
                 <div className="text-center mb-4">
-                  <h3 className="text-sm font-bold">Recuperar Acceso</h3>
-                  <p className="text-xs text-muted-foreground mt-1">Te enviaremos un link para crear una nueva contraseña</p>
+                  <h3 className="text-base font-bold">Recuperar Acceso</h3>
+                  <p className="text-sm text-muted-foreground mt-1">Te enviaremos un link para crear una nueva contraseña</p>
                 </div>
                 <div>
                   <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Email</label>
                   <input
-                    type="email" value={email}
+                    type="email"
+                    inputMode="email"
+                    autoComplete="email"
+                    autoCapitalize="none"
+                    value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="usuario@alcon.com"
-                    className="mt-1.5 w-full rounded-xl border border-border bg-background/50 px-4 py-3 text-sm outline-none focus:ring-1 focus:ring-primary transition-all"
+                    className="mt-2 w-full rounded-xl border border-border bg-background/50 px-4 h-14 text-base outline-none focus:ring-2 focus:ring-primary transition-all"
                     required
                   />
                 </div>
-                {error   && <div className="text-xs text-rose-400 bg-rose-500/5 border border-rose-500/20 rounded-xl p-3">{error}</div>}
-                {message && <div className="text-xs text-emerald-400 bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-3">{message}</div>}
-                <div className="flex gap-2">
-                  <button type="button" onClick={() => setMode("login")} className="flex-1 rounded-xl border border-border py-3 text-xs font-bold text-muted-foreground hover:bg-white/5">Volver</button>
-                  <button type="submit" disabled={loading} className="flex-[2] rounded-xl bg-blue-600 hover:bg-blue-500 py-3 text-xs font-bold text-white shadow-lg disabled:opacity-50">
+                {error   && <div className="text-sm text-rose-400 bg-rose-500/5 border border-rose-500/20 rounded-xl p-3.5">{error}</div>}
+                {message && <div className="text-sm text-emerald-400 bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-3.5">{message}</div>}
+                <div className="flex gap-3">
+                  <button type="button" onClick={() => setMode("login")} className="flex-1 rounded-xl border border-border h-14 text-sm font-bold text-muted-foreground hover:bg-white/5 active:scale-[0.98] transition-all">Volver</button>
+                  <button type="submit" disabled={loading} className="flex-[2] rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-[0.98] h-14 text-sm font-bold text-white shadow-lg disabled:opacity-50 transition-all">
                     {loading ? "Enviando..." : "Enviar Link"}
                   </button>
                 </div>
@@ -319,38 +329,40 @@ export default function Auth() {
             {/* ── PRIMER ACCESO (Registro con invitación) ── */}
             {mode === "register" && (
               <form onSubmit={handleRegister} className="space-y-4">
-                <div className="rounded-xl bg-blue-500/5 border border-blue-500/20 p-3 text-[11px] text-blue-400 flex items-start gap-2">
-                  <KeyRound className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                <div className="rounded-xl bg-blue-500/5 border border-blue-500/20 p-3.5 text-sm text-blue-400 flex items-start gap-2.5">
+                  <KeyRound className="h-4 w-4 shrink-0 mt-0.5" />
                   <span>Ingresa tu código de invitación para activar tu cuenta.</span>
                 </div>
                 <div>
                   <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Nombre Completo</label>
-                  <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} className="mt-1.5 w-full rounded-xl border border-border bg-background/50 px-4 py-3 text-sm" required />
+                  <input type="text" autoComplete="name" value={fullName} onChange={(e) => setFullName(e.target.value)} className="mt-2 w-full rounded-xl border border-border bg-background/50 px-4 h-14 text-base" required />
                 </div>
                 <div>
                   <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Email</label>
-                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1.5 w-full rounded-xl border border-border bg-background/50 px-4 py-3 text-sm" required />
+                  <input type="email" inputMode="email" autoComplete="email" autoCapitalize="none" value={email} onChange={(e) => setEmail(e.target.value)} className="mt-2 w-full rounded-xl border border-border bg-background/50 px-4 h-14 text-base" required />
                 </div>
                 <div>
                   <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Código de Invitación</label>
-                  <input type="text" value={inviteCode} onChange={(e) => setInviteCode(e.target.value.toUpperCase())} className="mt-1.5 w-full rounded-xl border border-blue-500/30 bg-blue-500/5 px-4 py-3 text-sm font-mono font-bold text-blue-400 uppercase tracking-widest" required />
+                  <input type="text" autoComplete="off" autoCapitalize="characters" value={inviteCode} onChange={(e) => setInviteCode(e.target.value.toUpperCase())} className="mt-2 w-full rounded-xl border border-blue-500/30 bg-blue-500/5 px-4 h-14 text-base font-mono font-bold text-blue-400 uppercase tracking-widest" required />
                 </div>
                 <div>
                   <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Contraseña (mín. 8 caracteres)</label>
-                  <div className="relative mt-1.5">
-                    <input type={showPass ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} className="w-full rounded-xl border border-border bg-background/50 px-4 py-3 pr-11 text-sm" required minLength={8} />
-                    <button type="button" onClick={() => setShowPass(p => !p)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                      {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  <div className="relative mt-2">
+                    <input type={showPass ? "text" : "password"} autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full rounded-xl border border-border bg-background/50 px-4 h-14 pr-14 text-base" required minLength={8} />
+                    <button type="button" onClick={() => setShowPass(p => !p)} className="absolute right-0 top-0 h-14 w-14 flex items-center justify-center text-muted-foreground">
+                      {showPass ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                     </button>
                   </div>
                 </div>
                 <div>
                   <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Confirmar Contraseña</label>
-                  <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="mt-1.5 w-full rounded-xl border border-border bg-background/50 px-4 py-3 text-sm" required />
+                  <input type="password" autoComplete="new-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="mt-2 w-full rounded-xl border border-border bg-background/50 px-4 h-14 text-base" required />
                 </div>
-                {error   && <div className="text-xs text-rose-400 bg-rose-500/5 border border-rose-500/20 rounded-xl p-3">{error}</div>}
-                {message && <div className="text-xs text-emerald-400 bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-3">{message}</div>}
-                <button type="submit" disabled={loading} className="w-full rounded-xl bg-blue-600 hover:bg-blue-500 py-3 text-sm font-bold text-white shadow-lg disabled:opacity-50">Activar mi cuenta</button>
+                {error   && <div className="text-sm text-rose-400 bg-rose-500/5 border border-rose-500/20 rounded-xl p-3.5">{error}</div>}
+                {message && <div className="text-sm text-emerald-400 bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-3.5">{message}</div>}
+                <button type="submit" disabled={loading} className="w-full rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-[0.98] h-14 text-base font-bold text-white shadow-lg shadow-blue-500/20 disabled:opacity-50 transition-all">
+                  {loading ? <span className="flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Activando...</span> : "Activar mi cuenta"}
+                </button>
               </form>
             )}
 
@@ -378,19 +390,20 @@ export default function Auth() {
 
                 <div>
                   <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Nueva Contraseña</label>
-                  <div className="relative mt-1.5">
+                  <div className="relative mt-2">
                     <input
                       type={showPass ? "text" : "password"}
+                      autoComplete="new-password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="w-full rounded-xl border border-border bg-background/50 px-4 py-3 pr-11 text-sm outline-none focus:ring-1 focus:ring-primary transition-all disabled:opacity-50"
+                      className="w-full rounded-xl border border-border bg-background/50 px-4 h-14 pr-14 text-base outline-none focus:ring-2 focus:ring-primary transition-all disabled:opacity-50"
                       required
                       minLength={8}
                       disabled={!sessionReady || !!message}
                       placeholder="Mínimo 8 caracteres"
                     />
-                    <button type="button" onClick={() => setShowPass(p => !p)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                      {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    <button type="button" onClick={() => setShowPass(p => !p)} className="absolute right-0 top-0 h-14 w-14 flex items-center justify-center text-muted-foreground">
+                      {showPass ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                     </button>
                   </div>
                 </div>
@@ -398,22 +411,23 @@ export default function Auth() {
                   <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Confirmar Contraseña</label>
                   <input
                     type="password"
+                    autoComplete="new-password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="mt-1.5 w-full rounded-xl border border-border bg-background/50 px-4 py-3 text-sm outline-none focus:ring-1 focus:ring-primary transition-all disabled:opacity-50"
+                    className="mt-2 w-full rounded-xl border border-border bg-background/50 px-4 h-14 text-base outline-none focus:ring-2 focus:ring-primary transition-all disabled:opacity-50"
                     required
                     disabled={!sessionReady || !!message}
                     placeholder="Repite la contraseña"
                   />
                 </div>
 
-                {error   && <div className="text-xs text-rose-400 bg-rose-500/5 border border-rose-500/20 rounded-xl p-3">{error}</div>}
-                {message && <div className="text-xs text-emerald-400 bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-3">{message}</div>}
+                {error   && <div className="text-sm text-rose-400 bg-rose-500/5 border border-rose-500/20 rounded-xl p-3.5">{error}</div>}
+                {message && <div className="text-sm text-emerald-400 bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-3.5">{message}</div>}
 
                 <button
                   type="submit"
                   disabled={loading || !sessionReady || !!message}
-                  className="w-full rounded-xl bg-blue-600 hover:bg-blue-500 py-3 text-sm font-bold text-white transition-all shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="w-full rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-[0.98] h-14 text-base font-bold text-white transition-all shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {loading ? (
                     <span className="flex items-center justify-center gap-2">
@@ -424,7 +438,7 @@ export default function Auth() {
 
                 {error && (
                   <button type="button" onClick={() => { setMode("forgot"); setError(""); }}
-                    className="w-full text-xs text-primary hover:underline underline-offset-2 transition-colors">
+                    className="w-full text-sm text-primary hover:underline underline-offset-2 transition-colors py-2">
                     → Solicitar nuevo link de recuperación
                   </button>
                 )}
