@@ -5,6 +5,37 @@
 /* ── Fonts: Inter body + Playfair Display headings (inspired by DMRI Seca site) ── */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:wght@400;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
+/* Custom Scrollbar - Premium Alcon Style */
+::-webkit-scrollbar {
+  width: 8px; /* Thinner scrollbar */
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--muted)/0.3);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--primary)/0.2);
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+  transition: background 0.3s;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--primary)/0.4);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+/* Ensure body is scrollable and barra is visible */
+html, body {
+  overflow-y: auto !important;
+  scrollbar-gutter: stable; /* Previene saltos de contenido */
+}
+
 @layer base {
   :root {
     /* Core colors */
