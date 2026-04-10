@@ -94,9 +94,9 @@ export default function Conofta() {
     const roiPct = roi.surgeriesForPayback > 0 ? Math.min(100, (roi.surgeriesDone / roi.surgeriesForPayback) * 100) : 0;
 
     return (
-        <div className="space-y-6 animate-fade-in">
-            {/* Intelligent Header */}
-            <div className="rounded-2xl border border-border bg-card/40 backdrop-blur-xl p-8 shadow-2xl ring-1 ring-white/5 relative overflow-hidden">
+        <div className="space-y-4 animate-fade-in">
+      {/* Intelligent Header */}
+      <div className="rounded-2xl border border-border bg-card/40 backdrop-blur-xl p-4 sm:p-8 shadow-2xl ring-1 ring-white/5 relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none">
                      <Zap className="h-40 w-40 text-primary" />
                 </div>
@@ -137,29 +137,29 @@ export default function Conofta() {
                         </div>
                     </div>
                 </div>
-            </div>
+      </div>
 
-            <Tabs defaultValue="comando" className="w-full">
-                <TabsList className="bg-muted/30 p-1 border border-border h-14 glass-surface mb-8 flex-wrap">
-                    <TabsTrigger value="comando" className="px-8 h-10 data-[state=active]:bg-emerald-600 data-[state=active]:text-white font-bold">
-                        <Target className="h-4 w-4 mr-2" />
-                        Centro de Comando
-                    </TabsTrigger>
-                    <TabsTrigger value="kpis" className="px-8 h-10 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-bold">
-                        <BarChart3 className="h-4 w-4 mr-2" />
-                        KPIs Operativos
-                    </TabsTrigger>
-                    {hasFinancialAccess && (
-                        <TabsTrigger value="finance" className="px-8 h-10 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-bold">
-                            <DollarSign className="h-4 w-4 mr-2" />
-                            P&L Inteligencia
-                        </TabsTrigger>
-                    )}
-                    <TabsTrigger value="results" className="px-8 h-10 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-bold">
-                        <Activity className="h-4 w-4 mr-2" />
-                        Resultados Clínicos
-                    </TabsTrigger>
-                </TabsList>
+      <Tabs defaultValue="comando" className="w-full">
+        <TabsList className="bg-muted/30 p-1 border border-border glass-surface h-auto flex-wrap gap-1 mb-4 w-full">
+          <TabsTrigger value="comando" className="flex-1 min-w-[80px] px-2 sm:px-6 h-10 data-[state=active]:bg-emerald-600 data-[state=active]:text-white font-bold text-xs sm:text-sm">
+            <Target className="h-4 w-4 sm:mr-2 shrink-0" />
+            <span className="hidden sm:inline">Centro de Comando</span>
+          </TabsTrigger>
+          <TabsTrigger value="kpis" className="flex-1 min-w-[80px] px-2 sm:px-6 h-10 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-bold text-xs sm:text-sm">
+            <BarChart3 className="h-4 w-4 sm:mr-2 shrink-0" />
+            <span className="hidden sm:inline">KPIs Operativos</span>
+          </TabsTrigger>
+          {hasFinancialAccess && (
+            <TabsTrigger value="finance" className="flex-1 min-w-[80px] px-2 sm:px-6 h-10 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-bold text-xs sm:text-sm">
+              <DollarSign className="h-4 w-4 sm:mr-2 shrink-0" />
+              <span className="hidden sm:inline">P&amp;L</span>
+            </TabsTrigger>
+          )}
+          <TabsTrigger value="results" className="flex-1 min-w-[80px] px-2 sm:px-6 h-10 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-bold text-xs sm:text-sm">
+            <Activity className="h-4 w-4 sm:mr-2 shrink-0" />
+            <span className="hidden sm:inline">Resultados</span>
+          </TabsTrigger>
+        </TabsList>
 
                 {/* ══ CENTRO DE COMANDO ══════════════════════════════════════ */}
                 <CentroDeComando onNavigate={navigate} isGerenteUser={isGerenteUser || false} filters={filters} />

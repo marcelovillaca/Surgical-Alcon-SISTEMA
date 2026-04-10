@@ -113,11 +113,16 @@
     @apply font-semibold tracking-tight;
   }
 
-  /* Better scrollbars */
-  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  /* Hide scrollbars globally — keep functional, just invisible */
+  ::-webkit-scrollbar { width: 0; height: 0; background: transparent; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 4px; }
-  ::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground)); }
+  ::-webkit-scrollbar-thumb { background: transparent; }
+  * { scrollbar-width: none; -ms-overflow-style: none; }
+
+  /* iOS smooth momentum scrolling in overflow containers */
+  .overflow-y-auto, .overflow-x-auto, [class*="overflow-"] {
+    -webkit-overflow-scrolling: touch;
+  }
 
   /* Safe area for iOS notch/home indicator */
   .safe-area-inset-bottom {

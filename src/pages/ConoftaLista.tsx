@@ -447,30 +447,32 @@ export default function ConoftaLista() {
       <div className="rounded-2xl border border-border bg-card/40 p-4 overflow-x-auto">
         <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">Jornada del Paciente — Paso a Paso</p>
         <div className="flex items-center gap-1 min-w-max">
-          {[
-            { label: "1. Ingresado",    desc: "Ficha registrada",       color: "bg-amber-500/20 text-amber-400 border-amber-500/30",    count: funnelCounts.pendente,  status: "pendente" },
-            { label: "2. Pend. Pre-Op", desc: "Solicitar exámenes",     color: "bg-purple-500/20 text-purple-400 border-purple-500/30", count: funnelCounts.informado, status: "informado" },
-            { label: "3. Apto",         desc: "Pre-op completo",        color: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30", count: funnelCounts.apto,   status: "apto" },
-            { label: "4. Agendado",     desc: "Fecha + cirujano",       color: "bg-blue-500/20 text-blue-400 border-blue-500/30",       count: funnelCounts.agendado,  status: "agendado" },
-            { label: "5. Operado",      desc: "Registrar AV post-op",   color: "bg-indigo-500/20 text-indigo-400 border-indigo-500/30", count: funnelCounts.operado,   status: "operado" },
-            { label: "6. Finalizado",   desc: "Caso cerrado (otra lista)", color: "bg-zinc-500/20 text-zinc-400 border-zinc-500/30",    count: funnelCounts.concluido, status: "concluido" },
-          ].map((step, i) => (
-            <div key={step.label} className="flex items-center gap-1">
-              <button
-                onClick={() => setSelectedStatus(selectedStatus === step.status ? "all" : step.status)}
-                className={cn(
-                  "flex flex-col items-center px-4 py-2.5 rounded-xl border text-center min-w-[110px] transition-all hover:scale-[1.02]",
-                  step.color,
-                  selectedStatus === step.status && "ring-2 ring-white/20"
-                )}
-              >
-                <span className="text-sm font-black">{step.count}</span>
-                <span className="text-[10px] font-bold leading-tight">{step.label}</span>
-                <span className="text-[9px] opacity-70 leading-tight mt-0.5">{step.desc}</span>
-              </button>
-              {i < 5 && <span className="text-zinc-600 text-lg shrink-0">›</span>}
-            </div>
-          ))}
+          <div className="flex gap-1 overflow-x-auto pb-2 scrollbar-none">
+            {[
+              { label: "1. Ingresado",    desc: "Ficha registrada",       color: "bg-amber-500/20 text-amber-400 border-amber-500/30",    count: funnelCounts.pendente,  status: "pendente" },
+              { label: "2. Pend. Pre-Op", desc: "Solicitar exámenes",     color: "bg-purple-500/20 text-purple-400 border-purple-500/30", count: funnelCounts.informado, status: "informado" },
+              { label: "3. Apto",         desc: "Pre-op completo",        color: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30", count: funnelCounts.apto,   status: "apto" },
+              { label: "4. Agendado",     desc: "Fecha + cirujano",       color: "bg-blue-500/20 text-blue-400 border-blue-500/30",       count: funnelCounts.agendado,  status: "agendado" },
+              { label: "5. Operado",      desc: "Registrar AV post-op",   color: "bg-indigo-500/20 text-indigo-400 border-indigo-500/30", count: funnelCounts.operado,   status: "operado" },
+              { label: "6. Final.",       desc: "Caso cerrado",           color: "bg-zinc-500/20 text-zinc-400 border-zinc-500/30",       count: funnelCounts.concluido, status: "concluido" },
+            ].map((step, i) => (
+              <div key={step.label} className="flex items-center gap-1 shrink-0">
+                <button
+                  onClick={() => setSelectedStatus(selectedStatus === step.status ? "all" : step.status)}
+                  className={cn(
+                    "flex flex-col items-center px-3 py-2 rounded-xl border text-center min-w-[90px] transition-all active:scale-[0.97]",
+                    step.color,
+                    selectedStatus === step.status && "ring-2 ring-white/20"
+                  )}
+                >
+                  <span className="text-sm font-black">{step.count}</span>
+                  <span className="text-[10px] font-bold leading-tight">{step.label}</span>
+                  <span className="text-[9px] opacity-70 leading-tight mt-0.5 hidden sm:block">{step.desc}</span>
+                </button>
+                {i < 5 && <span className="text-zinc-600 text-lg shrink-0">›</span>}
+              </div>
+            ))}
+          </div>
         </div>
         {/* Leyenda */}
         <div className="flex items-center gap-6 mt-3 pt-3 border-t border-white/5">
