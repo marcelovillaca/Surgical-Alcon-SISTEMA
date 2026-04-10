@@ -147,111 +147,114 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const bottomNavItems = filteredGroups.flatMap(g => g.items).slice(0, 4);
 
   const SidebarContent = () => (
-    <>
-      {/* Logo */}
-      <div className="flex h-16 items-center justify-between border-b border-border px-4 shrink-0">
-        {!collapsed && (
-          <div className="flex items-center gap-2.5 animate-slide-in">
-            <div className="h-8 w-8 flex items-center justify-center shrink-0">
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* Scrollable Area (Logo + Switchers + Nav) */}
+      <div className="flex-1 flex flex-col min-h-0 overflow-y-auto custom-sidebar-scroll">
+        {/* Logo */}
+        <div className="flex h-16 items-center justify-between border-b border-border px-4 shrink-0">
+          {!collapsed && (
+            <div className="flex items-center gap-2.5 animate-slide-in">
+              <div className="h-8 w-8 flex items-center justify-center shrink-0">
+                <img src="/logo.png" alt="S" className="w-full h-full object-contain" />
+              </div>
+              <div>
+                <h1 className="text-sm font-display font-bold text-foreground tracking-tight">Surgical</h1>
+                <p className="text-[10px] text-muted-foreground">PORTAL <span className="bg-muted rounded px-1 py-0.5 text-[8px]">v1.0</span></p>
+              </div>
+            </div>
+          )}
+          {collapsed && (
+            <div className="mx-auto h-8 w-8 flex items-center justify-center">
               <img src="/logo.png" alt="S" className="w-full h-full object-contain" />
             </div>
-            <div>
-              <h1 className="text-sm font-display font-bold text-foreground tracking-tight">Surgical</h1>
-              <p className="text-[10px] text-muted-foreground">PORTAL <span className="bg-muted rounded px-1 py-0.5 text-[8px]">v1.0</span></p>
+          )}
+          {/* Mobile close button */}
+          <button
+            onClick={() => setMobileOpen(false)}
+            className="md:hidden ml-auto text-muted-foreground hover:text-foreground p-1"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Module Switcher */}
+        {!collapsed && !roleIsAlconOnly && !roleIsConoftaOnly && (
+          <div className="px-4 py-3 flex gap-2 shrink-0">
+            <button
+              onClick={() => handleModuleChange("alcon")}
+              className={cn(
+                "flex-1 py-2.5 text-[10px] font-bold rounded-xl transition-all",
+                activeModule === "alcon"
+                  ? "bg-primary text-secondary-foreground shadow-lg shadow-primary/20"
+                  : "bg-muted text-muted-foreground hover:bg-muted/80"
+              )}
+            >ALCON</button>
+            <button
+              onClick={() => handleModuleChange("conofta")}
+              className={cn(
+                "flex-1 py-2.5 text-[10px] font-bold rounded-xl transition-all",
+                activeModule === "conofta"
+                  ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20"
+                  : "bg-muted text-muted-foreground hover:bg-muted/80"
+              )}
+            >CONOFTA</button>
+          </div>
+        )}
+        {!collapsed && (roleIsAlconOnly || roleIsConoftaOnly) && (
+          <div className="px-4 py-3 shrink-0">
+            <div className={cn(
+              "rounded-xl py-1.5 text-center text-[10px] font-bold uppercase tracking-widest",
+              roleIsConoftaOnly ? "bg-blue-600/20 text-blue-400" : "bg-primary/10 text-primary"
+            )}>
+              {roleIsConoftaOnly ? "CONOFTA" : "ALCON"}
             </div>
           </div>
         )}
-        {collapsed && (
-          <div className="mx-auto h-8 w-8 flex items-center justify-center">
-            <img src="/logo.png" alt="S" className="w-full h-full object-contain" />
-          </div>
-        )}
-        {/* Mobile close button */}
-        <button
-          onClick={() => setMobileOpen(false)}
-          className="md:hidden ml-auto text-muted-foreground hover:text-foreground p-1"
-        >
-          <X className="h-5 w-5" />
-        </button>
+
+        {/* Navigation */}
+        <nav className="py-3 px-3 space-y-5">
+          {filteredGroups.map((group) => (
+            <div key={group.label}>
+              {!collapsed && (
+                <p className="px-3 mb-2 text-[9px] font-black uppercase tracking-[0.15em] text-muted-foreground/60">
+                  {group.label}
+                </p>
+              )}
+              <ul className="space-y-0.5">
+                {group.items.map((item) => (
+                  <li key={item.to}>
+                    <NavLink
+                      to={item.to}
+                      end={item.to === "/" || item.to === "/conofta"}
+                      className={({ isActive }) =>
+                        cn(
+                          "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 relative overflow-hidden group",
+                          isActive
+                            ? (activeModule === "conofta" ? "bg-blue-600/10 text-blue-400" : "bg-sidebar-accent text-primary")
+                            : "text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
+                        )
+                      }
+                    >
+                      {({ isActive }) => (
+                        <>
+                          {isActive && (
+                            <span className={cn("absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 rounded-r-full", activeModule === "conofta" ? "bg-blue-400" : "bg-primary")} />
+                          )}
+                          <item.icon className={cn("h-4 w-4 shrink-0 transition-colors", isActive && (activeModule === "conofta" ? "text-blue-400" : "text-primary"))} />
+                          {!collapsed && <span className="truncate">{item.label}</span>}
+                        </>
+                      )}
+                    </NavLink>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </nav>
       </div>
 
-      {/* Module Switcher */}
-      {!collapsed && !roleIsAlconOnly && !roleIsConoftaOnly && (
-        <div className="px-4 py-3 flex gap-2 shrink-0">
-          <button
-            onClick={() => handleModuleChange("alcon")}
-            className={cn(
-              "flex-1 py-2.5 text-[10px] font-bold rounded-xl transition-all",
-              activeModule === "alcon"
-                ? "bg-primary text-secondary-foreground shadow-lg shadow-primary/20"
-                : "bg-muted text-muted-foreground hover:bg-muted/80"
-            )}
-          >ALCON</button>
-          <button
-            onClick={() => handleModuleChange("conofta")}
-            className={cn(
-              "flex-1 py-2.5 text-[10px] font-bold rounded-xl transition-all",
-              activeModule === "conofta"
-                ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20"
-                : "bg-muted text-muted-foreground hover:bg-muted/80"
-            )}
-          >CONOFTA</button>
-        </div>
-      )}
-      {!collapsed && (roleIsAlconOnly || roleIsConoftaOnly) && (
-        <div className="px-4 py-3 shrink-0">
-          <div className={cn(
-            "rounded-xl py-1.5 text-center text-[10px] font-bold uppercase tracking-widest",
-            roleIsConoftaOnly ? "bg-blue-600/20 text-blue-400" : "bg-primary/10 text-primary"
-          )}>
-            {roleIsConoftaOnly ? "CONOFTA" : "ALCON"}
-          </div>
-        </div>
-      )}
-
-      {/* Navigation - Emerald scrollbar specifically for menu */}
-      <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-5 custom-sidebar-scroll">
-        {filteredGroups.map((group) => (
-          <div key={group.label}>
-            {!collapsed && (
-              <p className="px-3 mb-2 text-[9px] font-black uppercase tracking-[0.15em] text-muted-foreground/60">
-                {group.label}
-              </p>
-            )}
-            <ul className="space-y-0.5">
-              {group.items.map((item) => (
-                <li key={item.to}>
-                  <NavLink
-                    to={item.to}
-                    end={item.to === "/" || item.to === "/conofta"}
-                    className={({ isActive }) =>
-                      cn(
-                        "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 relative overflow-hidden group",
-                        isActive
-                          ? (activeModule === "conofta" ? "bg-blue-600/10 text-blue-400" : "bg-sidebar-accent text-primary")
-                          : "text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
-                      )
-                    }
-                  >
-                    {({ isActive }) => (
-                      <>
-                        {isActive && (
-                          <span className={cn("absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 rounded-r-full", activeModule === "conofta" ? "bg-blue-400" : "bg-primary")} />
-                        )}
-                        <item.icon className={cn("h-4 w-4 shrink-0 transition-colors", isActive && (activeModule === "conofta" ? "text-blue-400" : "text-primary"))} />
-                        {!collapsed && <span className="truncate">{item.label}</span>}
-                      </>
-                    )}
-                  </NavLink>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
-      </nav>
-
-      {/* User + Controls */}
-      <div className="border-t border-border p-3 space-y-2 shrink-0">
+      {/* User + Controls (Fixed at bottom) */}
+      <div className="border-t border-border p-3 space-y-2 shrink-0 bg-sidebar">
         {!collapsed && (
           <div className="flex items-center gap-2.5 px-2 mb-2">
             <div className="h-8 w-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
@@ -283,7 +286,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </button>
         </div>
       </div>
-    </>
+    </div>
   );
 
   return (
