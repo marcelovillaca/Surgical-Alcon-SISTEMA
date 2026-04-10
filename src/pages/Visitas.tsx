@@ -56,6 +56,7 @@ export default function Visitas() {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [showQuickVisit, setShowQuickVisit] = useState(false);
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [viewMode, setViewMode] = useState<"day" | "week" | "month">("week");
   const [filterType, setFilterType] = useState("todos");
@@ -278,7 +279,7 @@ export default function Visitas() {
     if (!navigator.geolocation) return;
     
     // Validate checklist completion for technical/strategic visits
-    const visit = visits.find(v => v.id === visitId);
+    const visit = allVisits.find(v => v.id === visitId);
     if (visit && (visit.visit_type === 'soporte_tecnico_clinico' || visit.visit_type === 'gestion_relacion')) {
         const completedCount = Object.values(activeChecklist).filter(v => v).length;
         if (completedCount < 2) {
@@ -298,6 +299,46 @@ export default function Visitas() {
       setActiveChecklist({});
       setChecklistObs("");
       if (viewMode === "day") fetchVisitsForDate(selectedDate); else fetchVisitsForWeek();
+    });
+  };
+
+  const handleQuickCheckIn = async (clientId: string) => {
+    if (!user) return;
+    if (!navigator.geolocation) {
+      toast({ title: "Error", description: "Geolocalización no disponible.", variant: "destructive" });
+      return;
+    }
+
+    setSubmitting(true);
+    const client = clients.find(c => c.id === clientId);
+
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      const { data: visit, error } = await supabase.from("visits").insert({
+        client_id: clientId,
+        visit_date: new Date().toISOString().split("T")[0],
+        scheduled_time: new Date().toLocaleTimeString("en-GB", { hour: '2-digit', minute: '2-digit' }),
+        visit_type: "promocion_producto",
+        created_by: user.id,
+        approved: true,
+        approved_by: user.id,
+        approved_at: new Date().toISOString(),
+        check_in_at: new Date().toISOString(),
+        check_in_lat: pos.coords.latitude,
+        check_in_lon: pos.coords.longitude
+      }).select("id").single();
+
+      if (error) {
+        toast({ title: "Error", description: error.message, variant: "destructive" });
+      } else {
+        toast({ title: "🚀 Visita Iniciada", description: `Check-in automático en ${client?.name}` });
+        setShowQuickVisit(false);
+        setClientSearch("");
+        if (viewMode === "day") fetchVisitsForDate(selectedDate); else fetchVisitsForWeek();
+      }
+      setSubmitting(false);
+    }, () => {
+      toast({ title: "Error", description: "Es necesario activar el GPS para el Check-in.", variant: "destructive" });
+      setSubmitting(false);
     });
   };
 
@@ -411,6 +452,28 @@ export default function Visitas() {
   const today = new Date().toISOString().split("T")[0];
   const dateDisplay = new Date(selectedDate + "T12:00:00");
 
+  const [activeVisit, setActiveVisit] = useState<Visit | null>(null);
+  const [activeTimer, setActiveTimer] = useState<string>("00:00:00");
+
+  useEffect(() => {
+    const active = visits.find(v => v.check_in_at && !v.check_out_at);
+    setActiveVisit(active || null);
+  }, [visits]);
+
+  useEffect(() => {
+    if (!activeVisit?.check_in_at) return;
+    const interval = setInterval(() => {
+      const start = new Date(activeVisit.check_in_at!).getTime();
+      const now = new Date().getTime();
+      const diff = now - start;
+      const hours = Math.floor(diff / 3600000);
+      const minutes = Math.floor((diff % 3600000) / 60000);
+      const seconds = Math.floor((diff % 60000) / 1000);
+      setActiveTimer(`${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [activeVisit]);
+
   // Stats
   const totalVisits = allVisits.length;
   const approvedCount = allVisits.filter((v) => v.approved === true).length;
@@ -425,6 +488,38 @@ export default function Visitas() {
   return (
     <div className="grid grid-cols-1 xl:grid-cols-4 gap-5 animate-slide-in">
       <div className="xl:col-span-3 space-y-5">
+        
+        {/* SFA Active Visit Sticky Header */}
+        {activeVisit && (
+          <div className="sticky top-0 z-30 -mx-4 sm:mx-0 sm:rounded-2xl bg-secondary/95 backdrop-blur-md p-4 mb-4 border-b-4 border-secondary shadow-2xl animate-bounce-subtle">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center animate-pulse">
+                  <Navigation className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-white/70 uppercase tracking-widest">VISITA EN CURSO</p>
+                  <h3 className="text-sm font-bold text-white truncate max-w-[150px] sm:max-w-none">
+                    {activeVisit.client?.name}
+                  </h3>
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="text-right">
+                  <p className="text-[10px] font-bold text-white/70 uppercase tracking-widest">DURACIÓN</p>
+                  <p className="text-lg font-mono font-bold text-white leading-none">{activeTimer}</p>
+                </div>
+                <button 
+                  onClick={() => handleCheckOut(activeVisit.id)}
+                  className="bg-white text-secondary px-6 py-2.5 rounded-xl font-bold text-xs shadow-lg hover:scale-105 active:scale-95 transition-all"
+                >
+                  FINALIZAR
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
@@ -435,20 +530,28 @@ export default function Visitas() {
             {isGerente ? "Aprobación y seguimiento del equipo" : "Programa y registra tus visitas"}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="flex rounded-lg border border-border overflow-hidden">
-            <button onClick={() => setViewMode("day")} className={cn("px-3 py-2.5 text-xs font-medium transition-colors", viewMode === "day" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}>Día</button>
-            <button onClick={() => setViewMode("week")} className={cn("px-3 py-2.5 text-xs font-medium transition-colors", viewMode === "week" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}>Semana</button>
-            <button onClick={() => setViewMode("month")} className={cn("px-3 py-2.5 text-xs font-medium transition-colors flex items-center gap-1", viewMode === "month" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}>
-              <Maximize2 className="h-3 w-3" /> <span className="hidden sm:inline">Mes</span>
-            </button>
+          <div className="flex items-center gap-2">
+            <div className="flex rounded-lg border border-border overflow-hidden">
+              <button onClick={() => setViewMode("day")} className={cn("px-3 py-2.5 text-xs font-medium transition-colors", viewMode === "day" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}>Día</button>
+              <button onClick={() => setViewMode("week")} className={cn("px-3 py-2.5 text-xs font-medium transition-colors", viewMode === "week" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}>Semana</button>
+              <button onClick={() => setViewMode("month")} className={cn("px-3 py-2.5 text-xs font-medium transition-colors flex items-center gap-1", viewMode === "month" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}>
+                <Maximize2 className="h-3 w-3" /> <span className="hidden sm:inline">Mes</span>
+              </button>
+            </div>
+            {!isGerente && (
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => setShowQuickVisit(true)} 
+                  className="flex items-center gap-2 rounded-xl bg-secondary/10 border border-secondary/20 px-4 py-2.5 text-sm font-semibold text-secondary transition-all hover:bg-secondary/20 active:scale-95"
+                >
+                  <MapPin className="h-4 w-4" /> <span>Rápida</span>
+                </button>
+                <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-2 rounded-xl gradient-gold px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-all hover:opacity-90 shadow-lg active:scale-95">
+                  <Plus className="h-4 w-4" /> <span className="hidden sm:inline">Nueva Visita</span><span className="sm:hidden">Visita</span>
+                </button>
+              </div>
+            )}
           </div>
-          {!isGerente && (
-            <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-2 rounded-xl gradient-gold px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-all hover:opacity-90 shadow-lg active:scale-95">
-              <Plus className="h-4 w-4" /> <span className="hidden sm:inline">Nueva Visita</span><span className="sm:hidden">Visita</span>
-            </button>
-          )}
-        </div>
       </div>
 
       {/* Date Navigator */}
@@ -1045,6 +1148,74 @@ export default function Visitas() {
             <p className="text-[10px] text-muted-foreground">Validación de geolocalización contra perímetro del cliente activada (±100m).</p>
         </div>
       </div>
+      {/* Quick Visit Modal Overlay */}
+      {showQuickVisit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border-2 border-secondary/30 bg-card p-6 shadow-2xl animate-scale-in">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-secondary/10 flex items-center justify-center">
+                  <Navigation className="h-5 w-5 text-secondary" />
+                </div>
+                <div>
+                  <h3 className="text-base font-display font-bold text-foreground">Visita Rápida</h3>
+                  <p className="text-xs text-muted-foreground">Check-in inmediato fuera de agenda</p>
+                </div>
+              </div>
+              <button onClick={() => { setShowQuickVisit(false); setClientSearch(""); }} className="text-muted-foreground hover:text-foreground">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <input 
+                  type="text" 
+                  value={clientSearch}
+                  onChange={(e) => setClientSearch(e.target.value)}
+                  placeholder="Buscar médico o clínica..."
+                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-border bg-background text-sm focus:ring-2 focus:ring-secondary outline-none transition-all"
+                  autoFocus
+                />
+              </div>
+
+              <div className="max-h-[300px] overflow-y-auto custom-sidebar-scroll space-y-2 pr-2">
+                {clientSearch.length < 2 ? (
+                  <p className="text-center py-8 text-xs text-muted-foreground italic">Escriba al menos 2 letras para buscar...</p>
+                ) : filteredClients.length === 0 ? (
+                  <p className="text-center py-8 text-xs text-muted-foreground italic">No se encontraron clientes.</p>
+                ) : (
+                  filteredClients.map(c => (
+                    <button 
+                      key={c.id} 
+                      onClick={() => handleQuickCheckIn(c.id)}
+                      disabled={submitting}
+                      className="w-full flex items-center justify-between p-3 rounded-xl border border-border hover:border-secondary hover:bg-secondary/5 transition-all text-left group"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-foreground truncate">{c.name}</p>
+                        <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                          <MapPin className="h-2.5 w-2.5" /> {c.city || "Sin ciudad"}
+                        </p>
+                      </div>
+                      <div className="h-8 w-8 rounded-lg bg-secondary/10 text-secondary flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">
+                        {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div className="mt-6 pt-4 border-t border-border">
+              <p className="text-[9px] text-center text-muted-foreground uppercase tracking-widest leading-relaxed">
+                Al iniciar, se capturará su ubicación GPS y hora actual para el reporte de ejecución.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
