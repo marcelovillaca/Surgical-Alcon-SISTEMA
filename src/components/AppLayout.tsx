@@ -209,8 +209,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-5">
+      {/* Navigation - Emerald scrollbar specifically for menu */}
+      <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-5 custom-sidebar-scroll">
         {filteredGroups.map((group) => (
           <div key={group.label}>
             {!collapsed && (
