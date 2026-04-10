@@ -1,43 +1,50 @@
-import { useState, useEffect, useMemo } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { useUserRole } from "@/hooks/useUserRole";
-import { useAuth } from "@/hooks/useAuth";
-import { useToast } from "@/hooks/use-toast";
+import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import {
-  Package, Plus, Search, ArrowUpDown, ChevronDown, ChevronRight,
-  AlertTriangle, CheckCircle2, Clock, Send, Eye, X, Loader2,
-  ClipboardList, Warehouse, ArrowRightLeft, BarChart2, FileSpreadsheet
+  Package, Plus, Search, ChevronDown, ChevronRight,
+  AlertTriangle, CheckCircle2, Clock, Send, X, Loader2,
+  ClipboardList, Warehouse, ArrowRightLeft,
+  Droplets
 } from "lucide-react";
+import { format, parseISO } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-interface Product {
-  id: string; sku: string; name: string; category: string; unit: string;
-  base_cost?: number; min_stock: number; is_active: boolean;
-}
-interface InventoryItem {
-  id?: string; product_id: string; institution_id: string; quantity: number;
-  product?: Product;
-}
-interface ReplenishmentRequest {
-  id: string; request_number: string; institution_id: string; status: string;
-  notes_request?: string; notes_dispatch?: string; notes_received?: string;
-  requested_at: string; dispatched_at?: string; received_at?: string;
-  institution?: { name: string };
-  items?: ReplenishmentItem[];
-}
-interface ReplenishmentItem {
-  id?: string; request_id?: string; product_id: string; qty_requested: number;
-  qty_sent?: number; qty_received?: number; divergence_reason?: string;
-  product?: Product;
-}
-interface InventoryTask {
-  id: string; institution_id: string; period_year: number; period_month: number;
-  status: string; due_date: string; completed_at?: string;
-  institution?: { name: string };
-}
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { InventoryProvider, useInventory } from "@/components/conofta/inventory/InventoryProvider";
+import { InventoryStats } from "@/components/conofta/inventory/InventoryStats";
+import { StockTable } from "@/components/conofta/inventory/StockTable";
+import { ReplenishmentTabs } from "@/components/conofta/inventory/ReplenishmentTabs";
+import { motion, AnimatePresence } from "framer-motion";
+import { 
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { NewRequestPanel } from "@/components/conofta/inventory/panels/NewRequestPanel";
+import { DispatchPanel } from "@/components/conofta/inventory/panels/DispatchPanel";
+import { ReceivePanel } from "@/components/conofta/inventory/panels/ReceivePanel";
+import { NewProductPanel } from "@/components/conofta/inventory/panels/NewProductPanel";
+import { JourneyConsumptionPanel } from "@/components/conofta/inventory/panels/JourneyConsumptionPanel";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
+import { format, parseISO } from "date-fns";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const CATEGORIES: Record<string, { label: string; color: string }> = {
   lente: { label: "Lente", color: "bg-blue-500/20 text-blue-400 border-blue-500/30" },
@@ -56,192 +63,78 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }>
 
 const MONTH_NAMES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 
-// ─── Generate request number helper ──────────────────────────────────────────
-async function generateRequestNumber(): Promise<string> {
-  const { data } = await (supabase as any).rpc("generate_request_number");
-  return data || `REP-${Date.now()}`;
+// ─── Main Component Wrapper ──────────────────────────────────────────────────
+export default function ConoftaInventarioPage() {
+  return (
+    <InventoryProvider>
+      <ConoftaInventario />
+    </InventoryProvider>
+  );
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
-export default function ConoftaInventario() {
-  const { role, institutionId, institutionName, isGerente } = useUserRole();
+function ConoftaInventario() {
+  const {
+    loading,
+    products,
+    inventory,
+    institutions,
+    requests,
+    tasks,
+    journeys,
+    selectedJourneyConsumptions,
+    institutionId,
+    institutionName,
+    isGerente,
+    isAdmin,
+    isCoordinador,
+    fetchAll,
+    handleCreateRequest,
+    handleDispatch,
+    handleReceive,
+    handleFetchJourneyConsumptions,
+    handleSaveJourneyConsumption
+  } = useInventory();
+
   const { user } = useAuth();
   const { toast } = useToast();
 
   const canViewPrices = isGerente;
-  const isAdmin = isGerente || role === "admin_conofta";
-  const isCoordinador = role === "coordinador_local";
 
-  const [activeTab, setActiveTab] = useState<"stock" | "replenishment" | "tasks" | "products">("stock");
-  const [loading, setLoading] = useState(true);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [inventory, setInventory] = useState<InventoryItem[]>([]);
-  const [institutions, setInstitutions] = useState<{ id: string; name: string }[]>([]);
-  const [requests, setRequests] = useState<ReplenishmentRequest[]>([]);
-  const [tasks, setTasks] = useState<InventoryTask[]>([]);
-  const [search, setSearch] = useState("");
-  const [selectedInstitution, setSelectedInstitution] = useState<string>(institutionId || "");
+  const [activeTab, setActiveTab] = useState<"stock" | "replenishment" | "tasks" | "products" | "consumption">("stock");
 
   // Panels
   const [showNewRequest, setShowNewRequest] = useState(false);
-  const [showDispatchPanel, setShowDispatchPanel] = useState<ReplenishmentRequest | null>(null);
-  const [showReceivePanel, setShowReceivePanel] = useState<ReplenishmentRequest | null>(null);
+  const [showDispatchPanel, setShowDispatchPanel] = useState<any | null>(null);
+  const [showReceivePanel, setShowReceivePanel] = useState<any | null>(null);
   const [showNewProduct, setShowNewProduct] = useState(false);
+  const [showConsumptionPanel, setShowConsumptionPanel] = useState(false);
+  const [selectedJourneyId, setSelectedJourneyId] = useState<string>("");
   const [expandedRequest, setExpandedRequest] = useState<string | null>(null);
 
-  // ─── Fetch ──────────────────────────────────────────────────────────────────
-  const fetchAll = async () => {
-    // Guard: don't fetch until role is loaded
-    if (role === null) return;
-
-    setLoading(true);
-    try {
-      // Products
-      const prodRes = await (supabase as any).from("conofta_products").select("*").order("name");
-      if (prodRes.error) {
-        console.error("[Inventario] products error:", prodRes.error.message);
-      }
-      setProducts(prodRes.data || []);
-
-      // Institutions
-      const instRes = await (supabase as any).from("institutions").select("id, name").order("name");
-      if (instRes.error) console.error("[Inventario] institutions error:", instRes.error.message);
-      setInstitutions(instRes.data || []);
-
-      // Inventory
-      const invQ = (supabase as any)
-        .from("conofta_inventory")
-        .select("*, product:conofta_products(*)");
-      if (isCoordinador && institutionId) invQ.eq("institution_id", institutionId);
-      const { data: invData, error: invErr } = await invQ;
-      if (invErr) console.error("[Inventario] inventory error:", invErr.message);
-      setInventory(invData || []);
-
-      // Replenishment requests
-      const repQ = (supabase as any)
-        .from("conofta_replenishment_requests")
-        .select("*, institution:institutions(name), items:conofta_replenishment_items(*, product:conofta_products(sku, name, unit))")
-        .order("created_at", { ascending: false });
-      if (isCoordinador && institutionId) repQ.eq("institution_id", institutionId);
-      const { data: repData, error: repErr } = await repQ;
-      if (repErr) console.error("[Inventario] replenishment error:", repErr.message);
-      setRequests(repData || []);
-
-      // Inventory tasks
-      const taskQ = (supabase as any)
-        .from("conofta_inventory_tasks")
-        .select("*, institution:institutions(name)")
-        .order("due_date", { ascending: false });
-      if (isCoordinador && institutionId) taskQ.eq("institution_id", institutionId);
-      const { data: taskData, error: taskErr } = await taskQ;
-      if (taskErr) console.error("[Inventario] tasks error:", taskErr.message);
-      setTasks(taskData || []);
-    } catch (err) {
-      console.error("[Inventario] Unexpected fetch error:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { fetchAll(); }, [role, institutionId]);
-  useEffect(() => { if (institutionId) setSelectedInstitution(institutionId); }, [institutionId]);
-
-  // ─── Filtered inventory ──────────────────────────────────────────────────────
-  const filteredInventory = useMemo(() => {
-    return inventory.filter(item => {
-      const matchesInst = !selectedInstitution || item.institution_id === selectedInstitution;
-      const matchesSearch = !search ||
-        item.product?.name.toLowerCase().includes(search.toLowerCase()) ||
-        item.product?.sku.toLowerCase().includes(search.toLowerCase());
-      return matchesInst && matchesSearch;
-    });
-  }, [inventory, selectedInstitution, search]);
-
-  const lowStockItems = filteredInventory.filter(
-    item => item.quantity <= (item.product?.min_stock || 5)
-  );
-
-  // ─── Actions ─────────────────────────────────────────────────────────────────
-  const handleCreateRequest = async (items: { product_id: string; qty_requested: number }[], notes: string) => {
-    const reqNum = await generateRequestNumber();
-    const instId = isCoordinador ? institutionId : selectedInstitution;
-    if (!instId) return toast({ title: "Selecione uma sede", variant: "destructive" });
-
-    const { data: req, error: reqErr } = await (supabase as any)
-      .from("conofta_replenishment_requests")
-      .insert({ request_number: reqNum, institution_id: instId, notes_request: notes, requested_by: user?.id })
-      .select().single();
-
-    if (reqErr) return toast({ title: "Erro ao criar pedido", description: reqErr.message, variant: "destructive" });
-
-    const itemsToInsert = items.map(i => ({ ...i, request_id: req.id }));
-    await (supabase as any).from("conofta_replenishment_items").insert(itemsToInsert);
-
-    toast({ title: `✅ Pedido ${reqNum} criado com sucesso!` });
+  // ─── Local Action Wrappers ──────────────────────────────────────────────────
+  const onCreateRequest = async (items: any[], notes: string) => {
+    await handleCreateRequest(items, notes, selectedInstitution);
     setShowNewRequest(false);
-    fetchAll();
   };
 
-  const handleDispatch = async (reqId: string, items: { id: string; qty_sent: number }[], notes: string) => {
-    await (supabase as any).from("conofta_replenishment_requests")
-      .update({ status: "enviado", notes_dispatch: notes, dispatched_by: user?.id, dispatched_at: new Date().toISOString() })
-      .eq("id", reqId);
-
-    for (const item of items) {
-      await (supabase as any).from("conofta_replenishment_items")
-        .update({ qty_sent: item.qty_sent }).eq("id", item.id);
-    }
-    toast({ title: "✅ Pedido marcado como Enviado" });
+  const onDispatch = async (reqId: string, items: any[], notes: string) => {
+    await handleDispatch(reqId, items, notes);
     setShowDispatchPanel(null);
-    fetchAll();
   };
 
-  const handleReceive = async (reqId: string, institution_id: string, items: { id: string; product_id: string; qty_received: number; qty_sent: number; divergence_reason?: string }[], notes: string) => {
-    const hasDivergence = items.some(i => i.qty_received !== i.qty_sent);
-    const newStatus = hasDivergence ? "divergente" : "recebido";
-
-    await (supabase as any).from("conofta_replenishment_requests")
-      .update({ status: newStatus, notes_received: notes, received_by: user?.id, received_at: new Date().toISOString() })
-      .eq("id", reqId);
-
-    for (const item of items) {
-      await (supabase as any).from("conofta_replenishment_items")
-        .update({ qty_received: item.qty_received, divergence_reason: item.divergence_reason })
-        .eq("id", item.id);
-    }
-
-    // Update inventory
-    for (const item of items) {
-      const { data: existing } = await (supabase as any).from("conofta_inventory")
-        .select("id, quantity").eq("institution_id", institution_id).eq("product_id", item.product_id).maybeSingle();
-
-      if (existing) {
-        await (supabase as any).from("conofta_inventory")
-          .update({ quantity: existing.quantity + item.qty_received, updated_at: new Date().toISOString() })
-          .eq("id", existing.id);
-      } else {
-        await (supabase as any).from("conofta_inventory")
-          .insert({ institution_id, product_id: item.product_id, quantity: item.qty_received });
-      }
-
-      // Stock movement record
-      await (supabase as any).from("conofta_stock_movements").insert({
-        institution_id, product_id: item.product_id,
-        movement_type: "entrada_reposicao",
-        quantity: item.qty_received,
-        reference_id: reqId, reference_type: "replenishment_request",
-        notes: hasDivergence ? `Divergência detectada. ${item.divergence_reason || ""}` : "Recepção confirmada",
-        created_by: user?.id
-      });
-    }
-
-    if (hasDivergence) {
-      toast({ title: "⚠️ Pedido recebido com divergências", description: "O Gerente foi notificado.", variant: "destructive" });
-    } else {
-      toast({ title: "✅ Recepção confirmada! Estoque atualizado." });
-    }
+  const onReceive = async (reqId: string, instId: string, items: any[], notes: string) => {
+    await handleReceive(reqId, instId, items, notes);
     setShowReceivePanel(null);
-    fetchAll();
+  };
+
+  const onSelectJourney = async (journeyId: string) => {
+    setSelectedJourneyId(journeyId);
+    await handleFetchJourneyConsumptions(journeyId);
+  };
+
+  const onSaveJourneyConsumption = async (journeyId: string, items: any[]) => {
+    await handleSaveJourneyConsumption(journeyId, items);
+    setShowConsumptionPanel(false);
   };
 
   // Still loading auth/role
@@ -265,63 +158,82 @@ export default function ConoftaInventario() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-8 animate-fade-in max-w-[1600px] mx-auto pb-12">
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className="rounded-2xl border border-blue-500/20 bg-gradient-to-br from-card/80 to-blue-950/20 p-8 shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
-          <Warehouse className="h-48 w-48 text-blue-400" />
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="rounded-3xl border border-blue-500/20 bg-gradient-to-br from-card/40 to-blue-950/20 backdrop-blur-xl p-8 shadow-[0_20px_50px_rgba(0,0,0,0.3)] relative overflow-hidden"
+      >
+        <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none group-hover:opacity-10 transition-opacity">
+          <Warehouse className="h-48 w-48 text-blue-400 rotate-12" />
         </div>
+        
+        <div className="absolute -bottom-24 -left-24 h-64 w-64 bg-blue-500/10 rounded-full blur-[80px]" />
+        
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
           <div>
-            <div className="flex items-center gap-3 mb-2">
-              <h1 className="text-3xl font-display font-bold text-foreground">
-                Gestión de <span className="text-blue-400">Inventario</span>
+            <div className="flex items-center gap-4 mb-3">
+              <div className="h-12 w-12 rounded-2xl bg-blue-500/20 flex items-center justify-center border border-blue-500/30">
+                <Warehouse className="h-6 w-6 text-blue-400" />
+              </div>
+              <h1 className="text-4xl font-display font-black tracking-tight text-foreground">
+                Gestión de <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-400">Inventario</span>
               </h1>
-              {lowStockItems.length > 0 && (
-                <Badge className="bg-rose-500/20 text-rose-400 border-rose-500/30 animate-pulse">
-                  {lowStockItems.length} Stock Bajo
-                </Badge>
-              )}
             </div>
-            <p className="text-sm text-muted-foreground">
-              {isCoordinador ? `Sede: ${institutionName}` : "Vista consolidada de todas las sedes"}
+            <p className="text-sm text-muted-foreground font-medium flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
+              {isCoordinador ? `Sede Operativa: ${institutionName}` : "Consolidado Global de Red de Sedes"}
             </p>
           </div>
-          <div className="flex flex-wrap gap-3">
-            {!isAdmin && (
-              <Button onClick={() => setShowNewRequest(true)} className="bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20">
-                <Plus className="h-4 w-4 mr-2" /> Solicitar Reposición
-              </Button>
-            )}
+          
+          <div className="flex flex-wrap gap-4">
+            <AnimatePresence mode="wait">
+              {!isAdmin && (
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="flex gap-3"
+                >
+                  <Button 
+                    onClick={() => setShowConsumptionPanel(true)} 
+                    variant="outline" 
+                    className="h-11 rounded-xl border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 hover:border-emerald-500/50 transition-all font-bold"
+                  >
+                    <Droplets className="h-4 w-4 mr-2" /> Lançar Consumo
+                  </Button>
+                  <Button 
+                    onClick={() => setShowNewRequest(true)} 
+                    className="h-11 rounded-xl bg-blue-600 hover:bg-blue-500 text-white shadow-[0_10px_20px_rgba(37,99,235,0.3)] font-black px-6"
+                  >
+                    <Plus className="h-4 w-4 mr-2" /> Solicitar Reposición
+                  </Button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+            
             {isGerente && (
-              <Button variant="outline" onClick={() => setShowNewProduct(true)} className="border-primary/30 hover:border-primary">
-                <Package className="h-4 w-4 mr-2" /> Nuevo Producto
+              <Button 
+                variant="outline" 
+                onClick={() => setShowNewProduct(true)} 
+                className="h-11 rounded-xl border-blue-400/20 bg-blue-400/5 hover:bg-blue-400/10 font-bold"
+              >
+                <Package className="h-4 w-4 mr-2 text-blue-400" /> Nuevo Producto
               </Button>
             )}
           </div>
         </div>
-      </div>
+      </motion.div>
 
-      {/* ── KPI Bar ────────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {[
-          { label: "Productos Activos", value: products.filter(p => p.is_active).length, color: "text-blue-400", bg: "bg-blue-500/10" },
-          { label: "Stock Bajo ⚠", value: lowStockItems.length, color: lowStockItems.length > 0 ? "text-rose-400" : "text-emerald-400", bg: lowStockItems.length > 0 ? "bg-rose-500/10" : "bg-emerald-500/10" },
-          { label: "Pedidos Pendientes", value: requests.filter(r => r.status === "pendente").length, color: "text-amber-400", bg: "bg-amber-500/10" },
-          { label: "Tareas de Inventario", value: tasks.filter(t => t.status === "pendente").length, color: "text-purple-400", bg: "bg-purple-500/10" },
-        ].map(k => (
-          <div key={k.label} className={cn("rounded-2xl border border-border p-5 space-y-1", k.bg)}>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{k.label}</p>
-            <p className={cn("text-3xl font-black font-display", k.color)}>{k.value}</p>
-          </div>
-        ))}
-      </div>
+      {/* ── KPI Dashboard ─────────────────────────────────────────────────── */}
+      <InventoryStats />
 
       {/* ── Tabs ───────────────────────────────────────────────────────────── */}
       <div className="flex gap-1 border-b border-border pb-0">
         {[
           { key: "stock", label: "Estoque Atual", icon: Warehouse },
           { key: "replenishment", label: "Pedidos / Reposición", icon: ArrowRightLeft },
+          { key: "consumption", label: "Consumo de Jornadas", icon: Droplets },
           { key: "tasks", label: "Tareas de Inventario", icon: ClipboardList },
           ...(isGerente ? [{ key: "products", label: "Catálogo de Productos", icon: Package }] : []),
         ].map(tab => (
@@ -343,206 +255,28 @@ export default function ConoftaInventario() {
 
       {/* ── ESTOQUE ATUAL ────────────────────────────────────────────────────── */}
       {activeTab === "stock" && (
-        <div className="space-y-4">
-          <div className="flex flex-wrap gap-3">
-            <div className="relative flex-1 min-w-[220px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <input
-                value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar produto..."
-                className="w-full pl-10 pr-4 h-10 rounded-xl border border-border bg-background text-sm outline-none focus:ring-2 focus:ring-blue-500/20"
-              />
-            </div>
-            {isAdmin && (
-              <select
-                value={selectedInstitution} onChange={e => setSelectedInstitution(e.target.value)}
-                className="h-10 px-4 rounded-xl border border-border bg-background text-sm outline-none min-w-[200px]"
-              >
-                <option value="">Todas las Sedes</option>
-                {institutions.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
-              </select>
-            )}
-          </div>
-
-          <div className="rounded-2xl border border-border bg-card/50 overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/30 border-b border-border">
-                <tr>
-                  <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Producto</th>
-                  <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Categoría</th>
-                  {isAdmin && <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Sede</th>}
-                  <th className="p-4 text-center text-[10px] font-black uppercase tracking-widest text-muted-foreground">En Stock</th>
-                  <th className="p-4 text-center text-[10px] font-black uppercase tracking-widest text-muted-foreground">Mínimo</th>
-                  <th className="p-4 text-center text-[10px] font-black uppercase tracking-widest text-muted-foreground">Estado</th>
-                  {canViewPrices && <th className="p-4 text-right text-[10px] font-black uppercase tracking-widest text-muted-foreground">Costo Unit.</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {filteredInventory.length === 0 ? (
-                  <tr><td colSpan={7} className="p-16 text-center text-muted-foreground italic">Sin datos de inventario</td></tr>
-                ) : filteredInventory.map(item => {
-                  const isLow = item.quantity <= (item.product?.min_stock || 5);
-                  const catCfg = CATEGORIES[item.product?.category || "outro"];
-                  const instName = institutions.find(i => i.id === item.institution_id)?.name || "-";
-                  return (
-                    <tr key={item.id || item.product_id} className={cn("hover:bg-muted/5 transition-colors", isLow && "bg-rose-950/10")}>
-                      <td className="p-4">
-                        <p className="font-bold">{item.product?.name}</p>
-                        <p className="text-[10px] text-muted-foreground">{item.product?.sku}</p>
-                      </td>
-                      <td className="p-4">
-                        <Badge className={cn("text-[9px]", catCfg?.color)}>{catCfg?.label}</Badge>
-                      </td>
-                      {isAdmin && <td className="p-4 text-xs font-medium">{instName}</td>}
-                      <td className="p-4 text-center">
-                        <span className={cn("text-2xl font-black", isLow ? "text-rose-400" : "text-foreground")}>
-                          {item.quantity}
-                        </span>
-                        <span className="text-muted-foreground text-xs ml-1">{item.product?.unit}</span>
-                      </td>
-                      <td className="p-4 text-center text-sm text-muted-foreground">{item.product?.min_stock}</td>
-                      <td className="p-4 text-center">
-                        {isLow ? (
-                          <Badge className="bg-rose-500/10 text-rose-400 border-rose-500/20 text-[9px]">⚠ Stock Bajo</Badge>
-                        ) : (
-                          <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[9px]">OK</Badge>
-                        )}
-                      </td>
-                      {canViewPrices && (
-                        <td className="p-4 text-right text-sm font-bold text-primary">
-                          {item.product?.base_cost ? `$${item.product.base_cost.toLocaleString()}` : "-"}
-                        </td>
-                      )}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5 }}
+        >
+          <StockTable />
+        </motion.div>
       )}
 
       {/* ── PEDIDOS / REPOSIÇÃO ──────────────────────────────────────────────── */}
       {activeTab === "replenishment" && (
-        <div className="space-y-4">
-          <div className="flex justify-between items-center">
-            <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-widest">
-              Pedido → Enviado → Recibido
-            </h3>
-            {isCoordinador && (
-              <Button onClick={() => setShowNewRequest(true)} size="sm" className="bg-blue-600 hover:bg-blue-500">
-                <Plus className="h-4 w-4 mr-1" /> Nuevo Pedido
-              </Button>
-            )}
-          </div>
-
-          <div className="rounded-2xl border border-border bg-card/50 overflow-hidden">
-            {requests.length === 0 ? (
-              <div className="p-16 text-center text-muted-foreground italic">Sin pedidos registrados</div>
-            ) : requests.map(req => {
-              const cfg = STATUS_CONFIG[req.status] || STATUS_CONFIG.pendente;
-              const Icon = cfg.icon;
-              const isExpanded = expandedRequest === req.id;
-              return (
-                <div key={req.id} className="border-b border-border last:border-0">
-                  <div
-                    className="p-5 flex items-center justify-between cursor-pointer hover:bg-muted/5 transition-colors"
-                    onClick={() => setExpandedRequest(isExpanded ? null : req.id)}
-                  >
-                    <div className="flex items-center gap-4">
-                      {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
-                      <div>
-                        <p className="font-black text-sm">{req.request_number}</p>
-                        <p className="text-[10px] text-muted-foreground">
-                          {req.institution?.name} · {new Date(req.requested_at).toLocaleDateString("es-PY")}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Badge className={cn("text-[10px] border", cfg.color)}>
-                        <Icon className="h-3 w-3 mr-1" />{cfg.label}
-                      </Badge>
-                      {/* Action buttons */}
-                      {isAdmin && req.status === "pendente" && (
-                        <Button size="sm" variant="outline" className="border-blue-500/30 text-blue-400 hover:bg-blue-500/10 h-7 text-xs"
-                          onClick={e => { e.stopPropagation(); setShowDispatchPanel(req); }}>
-                          <Send className="h-3 w-3 mr-1" /> Despachar
-                        </Button>
-                      )}
-                      {req.status === "enviado" && (
-                        <Button size="sm" variant="outline" className="border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 h-7 text-xs"
-                          onClick={e => { e.stopPropagation(); setShowReceivePanel(req); }}>
-                          <CheckCircle2 className="h-3 w-3 mr-1" /> Confirmar Recepción
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Expanded: Items grid (Pedido / Enviado / Recibido) */}
-                  {isExpanded && req.items && (
-                    <div className="border-t border-border bg-muted/10 px-6 pb-6 pt-4">
-                      {req.notes_request && <p className="text-xs text-muted-foreground mb-4 italic">"{req.notes_request}"</p>}
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="text-[9px] uppercase font-black text-muted-foreground tracking-widest">
-                            <th className="pb-3 text-left">Producto</th>
-                            <th className="pb-3 text-center text-amber-400">Pedido</th>
-                            <th className="pb-3 text-center text-blue-400">Enviado</th>
-                            <th className="pb-3 text-center text-emerald-400">Recibido</th>
-                            <th className="pb-3 text-center">Estado</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border/50">
-                          {req.items.map(item => {
-                            const sentDiff = item.qty_sent != null && item.qty_sent < item.qty_requested;
-                            const recvDiff = item.qty_received != null && item.qty_sent != null && item.qty_received !== item.qty_sent;
-                            return (
-                              <tr key={item.id} className="hover:bg-muted/10">
-                                <td className="py-3">
-                                  <p className="font-bold">{item.product?.name}</p>
-                                  <p className="text-[10px] text-muted-foreground">{item.product?.sku} · {item.product?.unit}</p>
-                                </td>
-                                <td className="py-3 text-center font-black text-amber-400">{item.qty_requested}</td>
-                                <td className="py-3 text-center">
-                                  {item.qty_sent != null ? (
-                                    <span className={cn("font-black", sentDiff ? "text-rose-400" : "text-blue-400")}>
-                                      {item.qty_sent} {sentDiff && <span className="text-[9px] ml-1">⚠</span>}
-                                    </span>
-                                  ) : <span className="text-zinc-600">—</span>}
-                                </td>
-                                <td className="py-3 text-center">
-                                  {item.qty_received != null ? (
-                                    <span className={cn("font-black", recvDiff ? "text-rose-400" : "text-emerald-400")}>
-                                      {item.qty_received} {recvDiff && <span className="text-[9px] ml-1">⚠</span>}
-                                    </span>
-                                  ) : <span className="text-zinc-600">—</span>}
-                                </td>
-                                <td className="py-3 text-center">
-                                  {item.qty_received == null ? (
-                                    <Badge className="text-[8px] bg-zinc-500/10 text-zinc-400 border-zinc-500/20">Pendente</Badge>
-                                  ) : recvDiff ? (
-                                    <Badge className="text-[8px] bg-rose-500/10 text-rose-400 border-rose-500/20">Divergência</Badge>
-                                  ) : (
-                                    <Badge className="text-[8px] bg-emerald-500/10 text-emerald-400 border-emerald-500/20">OK</Badge>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                      {req.notes_dispatch && (
-                        <p className="text-[10px] text-blue-400 mt-3 italic">Central: "{req.notes_dispatch}"</p>
-                      )}
-                      {req.notes_received && (
-                        <p className="text-[10px] text-emerald-400 mt-1 italic">Sede: "{req.notes_received}"</p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5 }}
+        >
+          <ReplenishmentTabs 
+            onShowNewRequest={() => setShowNewRequest(true)}
+            onShowDispatch={setShowDispatchPanel}
+            onShowReceive={setShowReceivePanel}
+          />
+        </motion.div>
       )}
 
       {/* ── TAREFAS ──────────────────────────────────────────────────────────── */}
@@ -601,7 +335,57 @@ export default function ConoftaInventario() {
         </div>
       )}
 
-      {/* ── CATÁLOGO (Gerente) ────────────────────────────────────────────────── */}
+      {/* ── CONSUMO DE JORNADORES ────────────────────────────────────────────── */}
+      {activeTab === "consumption" && (
+        <div className="space-y-4">
+          <div className="flex gap-4 items-center">
+            <Select value={selectedJourneyId} onValueChange={onSelectJourney}>
+              <SelectTrigger className="w-[300px] h-10 rounded-xl">
+                <SelectValue placeholder="Seleccione una jornada..." />
+              </SelectTrigger>
+              <SelectContent>
+                {journeys.map(j => (
+                  <SelectItem key={j.id} value={j.id}>{j.name} ({format(parseISO(j.date), "dd/MM/yy")})</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button onClick={() => setShowConsumptionPanel(true)} disabled={!selectedJourneyId} className="bg-emerald-600 hover:bg-emerald-500">
+              <Plus className="h-4 w-4 mr-2" /> Registrar Consumo
+            </Button>
+          </div>
+
+          <div className="rounded-2xl border border-border bg-card/50 overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/30 border-b border-border">
+                <tr>
+                  <th className="p-4 text-left text-[10px] font-black uppercase text-muted-foreground">Producto de Consumo</th>
+                  <th className="p-4 text-center text-[10px] font-black uppercase text-muted-foreground">Quantidade Usada</th>
+                  <th className="p-4 text-center text-[10px] font-black uppercase text-muted-foreground">Unidad</th>
+                  {isGerente && <th className="p-4 text-right text-[10px] font-black uppercase text-muted-foreground">Custo Total</th>}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {selectedJourneyConsumptions.length === 0 ? (
+                  <tr><td colSpan={4} className="p-16 text-center text-muted-foreground italic">
+                    {selectedJourneyId ? "Sin insumos registrados para esta jornada" : "Seleccione una jornada para ver el consumo"}
+                  </td></tr>
+                ) : selectedJourneyConsumptions.map(c => (
+                  <tr key={c.id}>
+                    <td className="p-4 font-bold">{c.product?.name}</td>
+                    <td className="p-4 text-center text-emerald-400 font-black">{c.quantity}</td>
+                    <td className="p-4 text-center text-muted-foreground">{c.product?.unit}</td>
+                    {isGerente && (
+                      <td className="p-4 text-right font-bold text-primary">
+                        ${((c.product?.base_cost || 0) * c.quantity).toLocaleString()}
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
       {activeTab === "products" && isGerente && (
         <div className="rounded-2xl border border-border bg-card/50 overflow-hidden">
           <table className="w-full text-sm">
@@ -637,289 +421,81 @@ export default function ConoftaInventario() {
 
       {/* ── PANEL: Nuevo Pedido ───────────────────────────────────────────────── */}
       {showNewRequest && (
-        <NewRequestPanel
-          products={products}
-          institutions={isCoordinador ? institutions.filter(i => i.id === institutionId) : institutions}
-          defaultInstitution={institutionId || ""}
-          isCoordinador={isCoordinador}
-          onSubmit={handleCreateRequest}
-          onClose={() => setShowNewRequest(false)}
-        />
+        <PanelWrapper title="Nueva Solicitud" onClose={() => setShowNewRequest(false)}>
+          <NewRequestPanel
+            products={products}
+            institutions={isCoordinador ? institutions.filter(i => i.id === institutionId) : institutions}
+            defaultInstitution={institutionId || ""}
+            isCoordinador={isCoordinador}
+            onSubmit={onCreateRequest}
+            onClose={() => setShowNewRequest(false)}
+          />
+        </PanelWrapper>
       )}
 
       {/* ── PANEL: Despachar ──────────────────────────────────────────────────── */}
       {showDispatchPanel && (
-        <DispatchPanel
-          request={showDispatchPanel}
-          onSubmit={handleDispatch}
-          onClose={() => setShowDispatchPanel(null)}
-        />
+        <PanelWrapper title="Despachar Pedido" onClose={() => setShowDispatchPanel(null)}>
+          <DispatchPanel
+            request={showDispatchPanel}
+            onSubmit={onDispatch}
+            onClose={() => setShowDispatchPanel(null)}
+          />
+        </PanelWrapper>
       )}
 
       {/* ── PANEL: Receber ────────────────────────────────────────────────────── */}
       {showReceivePanel && (
-        <ReceivePanel
-          request={showReceivePanel}
-          onSubmit={handleReceive}
-          onClose={() => setShowReceivePanel(null)}
-        />
+        <PanelWrapper title="Recepción de Insumos" onClose={() => setShowReceivePanel(null)}>
+          <ReceivePanel
+            request={showReceivePanel}
+            onSubmit={onReceive}
+            onClose={() => setShowReceivePanel(null)}
+          />
+        </PanelWrapper>
       )}
 
       {/* ── PANEL: Nuevo Producto ─────────────────────────────────────────────── */}
       {showNewProduct && isGerente && (
-        <NewProductPanel
-          onSubmit={async (data) => {
-            const { error } = await (supabase as any).from("conofta_products").insert({ ...data, created_by: user?.id });
-            if (!error) { toast({ title: "✅ Produto criado!" }); setShowNewProduct(false); fetchAll(); }
-            else toast({ title: "Erro", description: error.message, variant: "destructive" });
-          }}
-          onClose={() => setShowNewProduct(false)}
-        />
+        <PanelWrapper title="Configurar Producto" onClose={() => setShowNewProduct(false)}>
+          <NewProductPanel
+            onSubmit={async (data: any) => {
+              const { error } = await (supabase as any).from("conofta_products").insert({ ...data, created_by: user?.id });
+              if (!error) { toast({ title: "✅ Produto criado!" }); setShowNewProduct(false); fetchAll(); }
+              else toast({ title: "Erro", description: error.message, variant: "destructive" });
+            }}
+          />
+        </PanelWrapper>
+      )}
+
+      {/* ── PANEL: Consumo Jornada ────────────────────────────────────────────── */}
+      {showConsumptionPanel && (
+        <PanelWrapper title="Registro de Consumo" onClose={() => setShowConsumptionPanel(false)}>
+          <JourneyConsumptionPanel
+            products={products.filter(p => p.category === "insumo")}
+            journeyId={selectedJourneyId}
+            journeys={journeys}
+            onSubmit={onSaveJourneyConsumption}
+          />
+        </PanelWrapper>
       )}
     </div>
   );
 }
 
-// ─── Sub-Panels ───────────────────────────────────────────────────────────────
+// ─── Sub-Panels Wrapper ─────────────────────────────────────────────────────
 function PanelWrapper({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-6 border-b border-border">
-          <h2 className="text-lg font-bold">{title}</h2>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors"><X className="h-5 w-5" /></button>
-        </div>
-        <div className="p-6">{children}</div>
-      </div>
-    </div>
+    <Sheet open={true} onOpenChange={onClose}>
+      <SheetContent className="sm:max-w-xl bg-card/60 backdrop-blur-2xl border-l border-white/10 shadow-2xl overflow-y-auto">
+        <SheetHeader className="mb-8">
+          <SheetTitle className="text-2xl font-black tracking-tight text-foreground uppercase">
+            {title}
+          </SheetTitle>
+        </SheetHeader>
+        {children}
+      </SheetContent>
+    </Sheet>
   );
 }
 
-function NewRequestPanel({ products, institutions, defaultInstitution, isCoordinador, onSubmit, onClose }: any) {
-  const [instId, setInstId] = useState(defaultInstitution);
-  const [notes, setNotes] = useState("");
-  const [items, setItems] = useState<{ product_id: string; qty_requested: number }[]>([
-    { product_id: "", qty_requested: 1 }
-  ]);
-
-  return (
-    <PanelWrapper title="Nueva Solicitud de Reposición" onClose={onClose}>
-      <div className="space-y-5">
-        {!isCoordinador && (
-          <div>
-            <label className="text-xs font-bold text-muted-foreground uppercase mb-2 block">Sede</label>
-            <select value={instId} onChange={e => setInstId(e.target.value)}
-              className="w-full h-10 px-4 rounded-xl border border-border bg-background text-sm outline-none">
-              <option value="">Seleccione sede...</option>
-              {institutions.map((i: any) => <option key={i.id} value={i.id}>{i.name}</option>)}
-            </select>
-          </div>
-        )}
-        <div>
-          <label className="text-xs font-bold text-muted-foreground uppercase mb-2 block">Productos Solicitados</label>
-          <div className="space-y-3">
-            {items.map((item, idx) => (
-              <div key={idx} className="grid grid-cols-[1fr_120px_32px] gap-2 items-center">
-                <select value={item.product_id}
-                  onChange={e => setItems(prev => prev.map((it, i) => i === idx ? { ...it, product_id: e.target.value } : it))}
-                  className="h-10 px-3 rounded-xl border border-border bg-background text-sm outline-none">
-                  <option value="">Seleccione producto...</option>
-                  {products.filter((p: Product) => p.is_active).map((p: Product) => (
-                    <option key={p.id} value={p.id}>{p.name} ({p.unit})</option>
-                  ))}
-                </select>
-                <input type="number" min={1} value={item.qty_requested}
-                  onChange={e => setItems(prev => prev.map((it, i) => i === idx ? { ...it, qty_requested: Number(e.target.value) } : it))}
-                  className="h-10 px-3 rounded-xl border border-border bg-background text-sm text-center outline-none"
-                  placeholder="Cant." />
-                <button onClick={() => setItems(prev => prev.filter((_, i) => i !== idx))}
-                  className="text-rose-500 hover:bg-rose-500/10 rounded-lg p-1 transition-colors">
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            ))}
-            <button onClick={() => setItems(prev => [...prev, { product_id: "", qty_requested: 1 }])}
-              className="flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300 font-bold transition-colors">
-              <Plus className="h-4 w-4" /> Agregar producto
-            </button>
-          </div>
-        </div>
-        <div>
-          <label className="text-xs font-bold text-muted-foreground uppercase mb-2 block">Observaciones</label>
-          <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3}
-            className="w-full px-4 py-3 rounded-xl border border-border bg-background text-sm outline-none resize-none" />
-        </div>
-        <Button className="w-full bg-blue-600 hover:bg-blue-500"
-          onClick={() => { if (items.some(i => i.product_id)) onSubmit(items.filter(i => i.product_id), notes); }}>
-          Enviar Solicitud
-        </Button>
-      </div>
-    </PanelWrapper>
-  );
-}
-
-function DispatchPanel({ request, onSubmit, onClose }: any) {
-  const [notes, setNotes] = useState("");
-  const [sentQtys, setSentQtys] = useState<Record<string, number>>(
-    Object.fromEntries((request.items || []).map((i: any) => [i.id, i.qty_requested]))
-  );
-  return (
-    <PanelWrapper title={`Despachar Pedido ${request.request_number}`} onClose={onClose}>
-      <div className="space-y-5">
-        <div className="rounded-xl bg-muted/30 p-4">
-          <p className="text-xs text-muted-foreground mb-3 font-bold uppercase tracking-widest">Confirme las cantidades a enviar</p>
-          <div className="space-y-3">
-            {(request.items || []).map((item: ReplenishmentItem) => (
-              <div key={item.id} className="grid grid-cols-[1fr_100px_100px] gap-3 items-center text-sm">
-                <div>
-                  <p className="font-bold">{item.product?.name}</p>
-                  <p className="text-[10px] text-muted-foreground">{item.product?.sku}</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-[9px] text-amber-400 font-bold uppercase">Pedido</p>
-                  <p className="text-lg font-black text-amber-400">{item.qty_requested}</p>
-                </div>
-                <div>
-                  <p className="text-[9px] text-blue-400 font-bold uppercase text-center mb-1">A Enviar</p>
-                  <input type="number" min={0} max={item.qty_requested}
-                    value={sentQtys[item.id!] ?? item.qty_requested}
-                    onChange={e => setSentQtys(prev => ({ ...prev, [item.id!]: Number(e.target.value) }))}
-                    className="w-full h-9 px-2 rounded-lg border border-blue-500/30 bg-background text-center text-sm font-black text-blue-400 outline-none" />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div>
-          <label className="text-xs font-bold text-muted-foreground uppercase mb-2 block">Notas del Despacho</label>
-          <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
-            className="w-full px-4 py-3 rounded-xl border border-border bg-background text-sm outline-none resize-none" />
-        </div>
-        <Button className="w-full bg-blue-600 hover:bg-blue-500"
-          onClick={() => onSubmit(request.id, Object.entries(sentQtys).map(([id, qty_sent]) => ({ id, qty_sent })), notes)}>
-          <Send className="h-4 w-4 mr-2" /> Confirmar Despacho
-        </Button>
-      </div>
-    </PanelWrapper>
-  );
-}
-
-function ReceivePanel({ request, onSubmit, onClose }: any) {
-  const [notes, setNotes] = useState("");
-  const [receivedItems, setReceivedItems] = useState(
-    (request.items || []).map((i: any) => ({
-      id: i.id, product_id: i.product_id, qty_received: i.qty_sent || 0,
-      qty_sent: i.qty_sent || 0, divergence_reason: ""
-    }))
-  );
-  return (
-    <PanelWrapper title={`Confirmar Recepción: ${request.request_number}`} onClose={onClose}>
-      <div className="space-y-5">
-        <div className="rounded-xl bg-muted/30 p-4">
-          <p className="text-xs text-muted-foreground mb-3 font-bold uppercase tracking-widest">Ingrese la cantidad físicamente recibida</p>
-          <div className="space-y-4">
-            {(request.items || []).map((item: ReplenishmentItem, idx: number) => {
-              const ri = receivedItems[idx];
-              const hasDiff = ri?.qty_received !== ri?.qty_sent;
-              return (
-                <div key={item.id} className="space-y-2">
-                  <div className="grid grid-cols-[1fr_90px_90px_90px] gap-3 items-center text-sm">
-                    <div>
-                      <p className="font-bold">{item.product?.name}</p>
-                      <p className="text-[10px] text-muted-foreground">{item.product?.sku}</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-[9px] text-amber-400 font-bold uppercase">Pedido</p>
-                      <p className="text-lg font-black text-amber-400">{item.qty_requested}</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-[9px] text-blue-400 font-bold uppercase">Enviado</p>
-                      <p className="text-lg font-black text-blue-400">{item.qty_sent ?? "—"}</p>
-                    </div>
-                    <div>
-                      <p className="text-[9px] text-emerald-400 font-bold uppercase text-center mb-1">Recibido</p>
-                      <input type="number" min={0}
-                        value={ri?.qty_received}
-                        onChange={e => setReceivedItems((prev: any) => prev.map((p: any, i: number) => i === idx ? { ...p, qty_received: Number(e.target.value) } : p))}
-                        className={cn(
-                          "w-full h-9 px-2 rounded-lg border bg-background text-center text-sm font-black outline-none",
-                          hasDiff ? "border-rose-500/50 text-rose-400" : "border-emerald-500/30 text-emerald-400"
-                        )} />
-                    </div>
-                  </div>
-                  {hasDiff && (
-                    <div className="pl-0">
-                      <input placeholder="Motivo de la divergencia (obligatorio)..."
-                        value={ri?.divergence_reason || ""}
-                        onChange={e => setReceivedItems((prev: any) => prev.map((p: any, i: number) => i === idx ? { ...p, divergence_reason: e.target.value } : p))}
-                        className="w-full h-8 px-3 rounded-lg border border-rose-500/30 bg-rose-950/20 text-xs text-rose-300 outline-none" />
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-        <div>
-          <label className="text-xs font-bold text-muted-foreground uppercase mb-2 block">Observaciones Generales</label>
-          <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
-            className="w-full px-4 py-3 rounded-xl border border-border bg-background text-sm outline-none resize-none" />
-        </div>
-        <Button className="w-full bg-emerald-600 hover:bg-emerald-500"
-          onClick={() => onSubmit(request.id, request.institution_id, receivedItems, notes)}>
-          <CheckCircle2 className="h-4 w-4 mr-2" /> Confirmar Recepción
-        </Button>
-      </div>
-    </PanelWrapper>
-  );
-}
-
-function NewProductPanel({ onSubmit, onClose }: any) {
-  const [form, setForm] = useState({ sku: "", name: "", category: "insumo", unit: "unid", base_cost: 0, min_stock: 5, notes: "" });
-  const set = (k: string, v: any) => setForm(prev => ({ ...prev, [k]: v }));
-  return (
-    <PanelWrapper title="Nuevo Producto" onClose={onClose}>
-      <div className="grid grid-cols-2 gap-4">
-        {[
-          { k: "sku", label: "SKU", type: "text", full: false },
-          { k: "name", label: "Nombre", type: "text", full: true },
-        ].map(f => (
-          <div key={f.k} className={f.full ? "col-span-2" : ""}>
-            <label className="text-xs font-bold text-muted-foreground uppercase mb-2 block">{f.label}</label>
-            <input type={f.type} value={(form as any)[f.k]} onChange={e => set(f.k, e.target.value)}
-              className="w-full h-10 px-4 rounded-xl border border-border bg-background text-sm outline-none" />
-          </div>
-        ))}
-        <div>
-          <label className="text-xs font-bold text-muted-foreground uppercase mb-2 block">Categoría</label>
-          <select value={form.category} onChange={e => set("category", e.target.value)}
-            className="w-full h-10 px-4 rounded-xl border border-border bg-background text-sm outline-none">
-            {Object.entries(CATEGORIES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="text-xs font-bold text-muted-foreground uppercase mb-2 block">Unidad</label>
-          <select value={form.unit} onChange={e => set("unit", e.target.value)}
-            className="w-full h-10 px-4 rounded-xl border border-border bg-background text-sm outline-none">
-            {["unid","caja","ml","pares","kit"].map(u => <option key={u} value={u}>{u}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="text-xs font-bold text-muted-foreground uppercase mb-2 block">Costo Base ($)</label>
-          <input type="number" min={0} step={0.01} value={form.base_cost} onChange={e => set("base_cost", Number(e.target.value))}
-            className="w-full h-10 px-4 rounded-xl border border-border bg-background text-sm outline-none" />
-        </div>
-        <div>
-          <label className="text-xs font-bold text-muted-foreground uppercase mb-2 block">Stock Mínimo</label>
-          <input type="number" min={0} value={form.min_stock} onChange={e => set("min_stock", Number(e.target.value))}
-            className="w-full h-10 px-4 rounded-xl border border-border bg-background text-sm outline-none" />
-        </div>
-        <div className="col-span-2">
-          <Button className="w-full bg-primary hover:bg-primary/80" onClick={() => onSubmit(form)}>
-            Guardar Producto
-          </Button>
-        </div>
-      </div>
-    </PanelWrapper>
-  );
-}

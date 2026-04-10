@@ -62,6 +62,13 @@ export interface WaitlistEntry {
   post_op_va_od?: string;
   post_op_va_os?: string;
   actual_surgery_date?: string;
+  
+  // Inventory/Lens integration
+  lens_product_id?: string;
+  lens_qty?: number;
+  lens_lot_number?: string;
+  lens_registered_at?: string;
+  lens_registered_by?: string;
 }
 
 export interface Surgeon {
@@ -94,7 +101,7 @@ export function useWaitlist(filters?: { sucursal?: string; medico?: string }) {
     try {
       let query = supabase
         .from('conofta_waitlist' as any)
-        .select('*, patient:conofta_patients(*), surgeon:conofta_surgeons(*), institution:institutions(name)');
+        .select('*, patient:conofta_patients(*), surgeon:conofta_surgeons(*)');
 
       // ─── Data Isolation ───────────────────────────────────────────────────
       // If Local Coordinator, restrict strictly by institution_id
@@ -134,8 +141,8 @@ export function useWaitlist(filters?: { sucursal?: string; medico?: string }) {
 
       setEntries(filteredData);
     } catch (error: any) {
-      console.error("[useWaitlist] fetchWaitlist error:", error.message);
-      toast.error("Error al cargar la lista de pacientes");
+      console.error("[useWaitlist] fetchWaitlist CRITICAL error:", error);
+      toast.error("Error al cargar la lista de pacientes: " + error.message);
     } finally {
       setLoading(false);
     }

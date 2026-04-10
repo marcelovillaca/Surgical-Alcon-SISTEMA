@@ -92,17 +92,48 @@ type SortField = "date_asc" | "date_desc" | "status";
 // ─── Confirm Surgery Modal (agendado → operado) ────────────────────────────────
 function ConfirmSurgeryModal({
   entry, onClose, onConfirm,
-}: { entry: WaitlistEntryType | null; onClose: () => void; onConfirm: (date: string) => Promise<void> }) {
+}: { entry: WaitlistEntryType | null; onClose: () => void; onConfirm: (date: string, lensId?: string) => Promise<void> }) {
   const [date, setDate] = useState(entry?.surgery_date || new Date().toISOString().split("T")[0]);
+  const [lensId, setLensId] = useState<string>("");
+  const [availableLenses, setAvailableLenses] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingLenses, setLoadingLenses] = useState(false);
+
   useEffect(() => {
-    if (entry) setDate(entry.actual_surgery_date || (entry.surgery_date ?? new Date().toISOString().split("T")[0]));
+    if (entry) {
+      setDate(entry.actual_surgery_date || (entry.surgery_date ?? new Date().toISOString().split("T")[0]));
+      fetchAvailableLenses(entry.assigned_institution_id || entry.institution_id);
+    }
   }, [entry]);
 
+  const fetchAvailableLenses = async (instId: string) => {
+    setLoadingLenses(true);
+    try {
+      // Busca produtos da categoria 'lente' que estão ativos
+      const { data: lenses } = await supabase
+        .from('conofta_products')
+        .select('id, name, sku, unit')
+        .eq('category', 'lente')
+        .eq('is_active', true)
+        .order('name');
+      
+      setAvailableLenses(lenses || []);
+    } finally {
+      setLoadingLenses(false);
+    }
+  };
+
   const handle = async () => {
+    if (!date) return toast.error("La fecha es obligatoria");
     setLoading(true);
-    try { await onConfirm(date); onClose(); }
-    catch { toast.error("Error al confirmar cirugía"); }
+    try {
+      await onConfirm(date, lensId || undefined);
+      onClose();
+    }
+    catch (err: any) {
+      console.error(err);
+      toast.error("Error al confirmar cirugía");
+    }
     finally { setLoading(false); }
   };
 
@@ -127,17 +158,38 @@ function ConfirmSurgeryModal({
               {entry?.surgery_date ? format(parseISO(entry.surgery_date), "dd/MM/yyyy") : "N/D"}
             </span>
           </p>
-          <div className="space-y-2">
-            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Fecha Real de Realización *</Label>
-            <Input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="h-12 bg-background/50 border-white/5"
-            />
-          </div>
-          <div className="p-3 rounded-xl bg-blue-500/5 border border-blue-500/10 text-[11px] text-blue-400">
-            Al confirmar, el paciente pasará a estado <strong>Operado</strong>, esperando registro de AV post-op.
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label className="text-[10px] uppercase font-bold text-muted-foreground">Fecha Real de Realización *</Label>
+              <Input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="h-12 bg-background/50 border-white/5"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-[10px] uppercase font-bold text-muted-foreground">Lente Intraocular Implantado (Stock)</Label>
+              <Select value={lensId} onValueChange={setLensId}>
+                <SelectTrigger className="h-12 bg-background/50 border-white/5">
+                  <SelectValue placeholder={loadingLenses ? "Cargando catálogo..." : "Seleccione lente..."} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sin registrar lente ahora</SelectItem>
+                  {availableLenses.map(l => (
+                    <SelectItem key={l.id} value={l.id}>
+                      {l.name} ({l.sku})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-muted-foreground italic">Opcional: Al seleccionar una lente, se descontará automáticamente del stock de la sede.</p>
+            </div>
+
+            <div className="p-3 rounded-xl bg-blue-500/5 border border-blue-500/10 text-[11px] text-blue-400">
+              Al confirmar, el paciente pasará a estado <strong>Operado</strong>, el stock de la lente será debitado y se esperará el registro de AV post-op.
+            </div>
           </div>
         </div>
         <DialogFooter className="p-6 pt-0 gap-3">
@@ -320,12 +372,23 @@ export default function ConoftaLista() {
     }
   };
 
-  const handleConfirmSurgery = async (actualDate: string) => {
+  const handleConfirmSurgery = async (actualDate: string, lensId?: string) => {
     if (!confirmSurgEntry?.id) return;
-    await updateEntryStatus(confirmSurgEntry.id, "operado", {
+    
+    // Prepara os metadados adicionais (lente)
+    const extraData: any = {
       actual_surgery_date: actualDate,
       operated_at: new Date().toISOString(),
-    });
+    };
+
+    if (lensId && lensId !== "none") {
+      extraData.lens_product_id = lensId;
+      extraData.lens_qty = 1;
+      extraData.lens_registered_at = new Date().toISOString();
+      extraData.lens_registered_by = (await supabase.auth.getUser()).data.user?.id;
+    }
+
+    await updateEntryStatus(confirmSurgEntry.id, "operado", extraData);
     refresh();
   };
 
