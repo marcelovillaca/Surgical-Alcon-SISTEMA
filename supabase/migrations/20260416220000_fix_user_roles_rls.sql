@@ -8,7 +8,7 @@ SELECT ur.id, ur.user_id, ur.role, ur.is_blocked,
        u.email as auth_email
 FROM public.user_roles ur
 LEFT JOIN auth.users u ON u.id = ur.user_id
-ORDER BY ur.created_at;
+ORDER BY ur.role;
 
 -- 2. Deletar registros onde user_id não existe em auth.users
 --    (esses são os registros "fantasma" que causam o erro)

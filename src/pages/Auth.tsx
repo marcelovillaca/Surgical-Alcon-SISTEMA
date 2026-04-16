@@ -62,7 +62,7 @@ export default function Auth() {
       const { data: profile } = await supabase
         .from("profiles")
         .select("must_change_password")
-        .eq("user_id", (await supabase.auth.getUser()).data.user?.id)
+        .eq("id", (await supabase.auth.getUser()).data.user?.id)
         .single();
 
       if (profile?.must_change_password) {
@@ -124,7 +124,7 @@ export default function Auth() {
       );
     } else {
       // Clear must_change_password flag
-      await supabase.from("profiles").update({ must_change_password: false }).eq("user_id", (await supabase.auth.getUser()).data.user?.id);
+      await supabase.from("profiles").update({ must_change_password: false }).eq("id", (await supabase.auth.getUser()).data.user?.id);
       
       setMessage("✅ ¡Contraseña actualizada con éxito! Serás redirigido al login...");
       await supabase.auth.signOut();
