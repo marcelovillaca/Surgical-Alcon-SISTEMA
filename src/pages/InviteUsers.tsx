@@ -244,6 +244,11 @@ export default function InviteUsers() {
   };
 
   const handleRemoveRole = async (userId: string) => {
+    if (!userId || userId === "null") {
+      // Registro órfão sem user_id válido — deletar direto via SQL seria necessário
+      toast({ title: "Registro inválido", description: "Este registro não tem user_id válido. Limpe via SQL no Supabase.", variant: "destructive" });
+      return;
+    }
     if (!confirm("¿Está seguro de revocar el acceso? El usuario no podrá ingresar al sistema.")) return;
     const { error } = await supabase.from("user_roles").delete().eq("user_id", userId);
     if (!error) {
