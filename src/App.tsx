@@ -32,6 +32,7 @@ const ConoftaReports = lazy(() => import("./pages/ConoftaReports"));
 const ConoftaSettings = lazy(() => import("./pages/ConoftaSettings"));
 const ConoftaLista = lazy(() => import("./pages/ConoftaLista"));
 const ConoftaInventario = lazy(() => import("./pages/ConoftaInventario"));
+const Profile = lazy(() => import("./pages/Profile"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const PlaceholderPage = lazy(() => import("@/components/PlaceholderPage"));
 
@@ -156,6 +157,7 @@ function ProtectedRoutes() {
           <Route path="/conofta/inventario" element={<RoleGuard allow={["gerente", "admin_conofta", "coordinador_local"]}><ConoftaInventario /></RoleGuard>} />
           <Route path="/reportes" element={<RoleGuard allow={["gerente"]}><Reportes /></RoleGuard>} />
           <Route path="/usuarios" element={<RoleGuard allow={["gerente"]}><InviteUsers /></RoleGuard>} />
+          <Route path="/perfil" element={<Profile />} />
           <Route path="/auditoria" element={<RoleGuard allow={["gerente", "admin_conofta"]}><AuditLogs /></RoleGuard>} />
           <Route path="/configuracion" element={<RoleGuard allow={["gerente"]}><PlaceholderPage title="Configuración" description="Gestión de parámetros del sistema." /></RoleGuard>} />
           <Route path="/logistica" element={<RoleGuard allow={["gerente", "bodega", "expedicion"]}><PlaceholderPage title="Logística" description="Módulo de expedición." /></RoleGuard>} />

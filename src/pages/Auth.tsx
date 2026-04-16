@@ -58,7 +58,20 @@ export default function Auth() {
           : error.message
       );
     } else {
-      navigate("/");
+      // Check if user needs to change password
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("must_change_password")
+        .eq("user_id", (await supabase.auth.getUser()).data.user?.id)
+        .single();
+
+      if (profile?.must_change_password) {
+        setMode("update_password");
+        setSessionReady(true);
+        setError("Debes cambiar tu contraseña inicial antes de continuar.");
+      } else {
+        navigate("/");
+      }
     }
     setLoading(false);
   };
@@ -110,6 +123,9 @@ export default function Auth() {
           : error.message
       );
     } else {
+      // Clear must_change_password flag
+      await supabase.from("profiles").update({ must_change_password: false }).eq("user_id", (await supabase.auth.getUser()).data.user?.id);
+      
       setMessage("✅ ¡Contraseña actualizada con éxito! Serás redirigido al login...");
       await supabase.auth.signOut();
       setTimeout(() => {
@@ -160,10 +176,19 @@ export default function Auth() {
       return;
     }
 
-    const { data, error: signUpError } = await (supabase as any).auth.signUp({
+    const { data: signUpData, error: signUpError } = await (supabase as any).auth.signUp({
       email,
       password,
-      options: { data: { full_name: fullName } },
+      options: { 
+        data: { 
+          full_name: fullName,
+          firstname: inviteData.metadata?.firstname || "",
+          lastname: inviteData.metadata?.lastname || "",
+          phone: inviteData.metadata?.phone || "",
+          city: inviteData.metadata?.city || "",
+          birth_date: inviteData.metadata?.birth_date || null
+        } 
+      },
     });
 
     if (signUpError) {
@@ -177,7 +202,7 @@ export default function Auth() {
       return;
     }
 
-    if (data.user) {
+    if (signUpData.user) {
       const { error: rpcError } = await (supabase as any).rpc("assign_role_via_invite", {
         p_email: email,
         p_code: inviteCode,

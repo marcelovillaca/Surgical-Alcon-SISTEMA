@@ -34,12 +34,10 @@ export interface WaitlistEntry {
   pre_op_va_left?: string;
   post_op_va_right?: string;
   post_op_va_left?: string;
-  exam_hemograma?: boolean;
-  exam_glicemia?: boolean;
-  exam_hba1c?: boolean;
-  exam_crasis?: boolean;
-  exam_orina?: boolean;
-  exam_ecg?: boolean;
+  exam_preop_complete?: boolean;
+  dioptria?: number;
+  unique_code?: string;
+  created_at?: string;
   has_diabetes?: boolean;
   has_hipertensao?: boolean;
   has_anticoagulados?: boolean;
@@ -242,12 +240,8 @@ export function useWaitlist(filters?: { sucursal?: string; medico?: string }) {
           notes: entry.notes,
           pre_op_va_right: entry.pre_op_va_right,
           pre_op_va_left: entry.pre_op_va_left,
-          exam_hemograma: entry.exam_hemograma,
-          exam_glicemia: entry.exam_glicemia,
-          exam_hba1c: entry.exam_hba1c,
-          exam_crasis: entry.exam_crasis,
-          exam_orina: entry.exam_orina,
-          exam_ecg: entry.exam_ecg,
+          exam_preop_complete: entry.exam_preop_complete,
+          dioptria: entry.dioptria,
           has_diabetes: entry.has_diabetes,
           has_hipertensao: entry.has_hipertensao,
           has_anticoagulados: entry.has_anticoagulados,
@@ -341,7 +335,7 @@ export function useWaitlist(filters?: { sucursal?: string; medico?: string }) {
       fetchJourneys();
       fetchSurgeons();
     }
-  }, [user]);
+  }, [user, role, institutionId]);
 
   return {
     entries,

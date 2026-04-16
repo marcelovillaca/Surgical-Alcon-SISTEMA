@@ -86,6 +86,249 @@ export type Database = {
           },
         ]
       }
+      conofta_patients: {
+        Row: {
+          id: string
+          cedula: string
+          firstname: string
+          lastname: string
+          address: string | null
+          city: string | null
+          phone: string | null
+          email: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          cedula: string
+          firstname: string
+          lastname: string
+          address?: string | null
+          city?: string | null
+          phone?: string | null
+          email?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          cedula?: string
+          firstname?: string
+          lastname?: string
+          address?: string | null
+          city?: string | null
+          phone?: string | null
+          email?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      conofta_waitlist: {
+        Row: {
+          id: string
+          patient_id: string
+          institution_id: string
+          assigned_institution_id: string | null
+          status: string
+          pre_surgical_data: Json | null
+          exams_data: Json | null
+          request_file_url: string | null
+          aptitude_file_url: string | null
+          journey_id: string | null
+          notes: string | null
+          pre_op_va_right: string | null
+          pre_op_va_left: string | null
+          post_op_va_right: string | null
+          post_op_va_left: string | null
+          exam_hemograma: boolean
+          exam_glicemia: boolean
+          exam_hba1c: boolean
+          exam_crasis: boolean
+          exam_orina: boolean
+          exam_ecg: boolean
+          has_diabetes: boolean
+          has_hipertensao: boolean
+          has_anticoagulados: boolean
+          pending_reason: string | null
+          post_msg_sent: boolean
+          created_at: string
+          updated_at: string
+          created_by: string | null
+          surgery_date: string | null
+          surgery_time: string | null
+          surgeon_id: string | null
+          requesting_doctor: string | null
+          target_eye: string | null
+          pre_op_va_od: string | null
+          pre_op_va_os: string | null
+          actual_surgery_date: string | null
+          informed_at: string | null
+          apto_at: string | null
+          scheduled_at: string | null
+          operated_at: string | null
+          finalized_at: string | null
+          lens_product_id: string | null
+          lens_qty: number | null
+          lens_lot_number: string | null
+          lens_registered_at: string | null
+          lens_registered_by: string | null
+        }
+        Insert: {
+          id?: string
+          patient_id: string
+          institution_id: string
+          assigned_institution_id?: string | null
+          status?: string
+          pre_surgical_data?: Json | null
+          exams_data?: Json | null
+          request_file_url?: string | null
+          aptitude_file_url?: string | null
+          journey_id?: string | null
+          notes?: string | null
+          pre_op_va_right?: string | null
+          pre_op_va_left?: string | null
+          post_op_va_right?: string | null
+          post_op_va_left?: string | null
+          exam_hemograma?: boolean
+          exam_glicemia?: boolean
+          exam_hba1c?: boolean
+          exam_crasis?: boolean
+          exam_orina?: boolean
+          exam_ecg?: boolean
+          has_diabetes?: boolean
+          has_hipertensao?: boolean
+          has_anticoagulados?: boolean
+          pending_reason?: string | null
+          post_msg_sent?: boolean
+          created_at?: string
+          updated_at?: string
+          created_by?: string | null
+          surgery_date?: string | null
+          surgery_time?: string | null
+          surgeon_id?: string | null
+          requesting_doctor?: string | null
+          target_eye?: string | null
+          pre_op_va_od?: string | null
+          pre_op_va_os?: string | null
+          actual_surgery_date?: string | null
+          informed_at?: string | null
+          apto_at?: string | null
+          scheduled_at?: string | null
+          operated_at?: string | null
+          finalized_at?: string | null
+          lens_product_id?: string | null
+          lens_qty?: number | null
+          lens_lot_number?: string | null
+          lens_registered_at?: string | null
+          lens_registered_by?: string | null
+        }
+        Update: {
+          id?: string
+          patient_id?: string
+          institution_id?: string
+          assigned_institution_id?: string | null
+          status?: string
+          pre_surgical_data?: Json | null
+          exams_data?: Json | null
+          request_file_url?: string | null
+          aptitude_file_url?: string | null
+          journey_id?: string | null
+          notes?: string | null
+          pre_op_va_right?: string | null
+          pre_op_va_left?: string | null
+          post_op_va_right?: string | null
+          post_op_va_left?: string | null
+          exam_hemograma?: boolean
+          exam_glicemia?: boolean
+          exam_hba1c?: boolean
+          exam_crasis?: boolean
+          exam_orina?: boolean
+          exam_ecg?: boolean
+          has_diabetes?: boolean
+          has_hipertensao?: boolean
+          has_anticoagulados?: boolean
+          pending_reason?: string | null
+          post_msg_sent?: boolean
+          created_at?: string
+          updated_at?: string
+          created_by?: string | null
+          surgery_date?: string | null
+          surgery_time?: string | null
+          surgeon_id?: string | null
+          requesting_doctor?: string | null
+          target_eye?: string | null
+          pre_op_va_od?: string | null
+          pre_op_va_os?: string | null
+          actual_surgery_date?: string | null
+          informed_at?: string | null
+          apto_at?: string | null
+          scheduled_at?: string | null
+          operated_at?: string | null
+          finalized_at?: string | null
+          lens_product_id?: string | null
+          lens_qty?: number | null
+          lens_lot_number?: string | null
+          lens_registered_at?: string | null
+          lens_registered_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conofta_waitlist_institution_id_fkey"
+            columns: ["institution_id"]
+            isOneToOne: false
+            referencedRelation: "institutions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conofta_waitlist_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "conofta_patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conofta_waitlist_surgeon_id_fkey"
+            columns: ["surgeon_id"]
+            isOneToOne: false
+            referencedRelation: "conofta_surgeons"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      conofta_surgeons: {
+        Row: {
+          id: string
+          name: string
+          specialty: string | null
+          is_active: boolean
+          created_at: string
+          institution_id: string | null
+        }
+        Insert: {
+          id?: string
+          name: string
+          specialty?: string | null
+          is_active?: boolean
+          created_at?: string
+          institution_id?: string | null
+        }
+        Update: {
+          id?: string
+          name?: string
+          specialty?: string | null
+          is_active?: boolean
+          created_at?: string
+          institution_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conofta_surgeons_institution_id_fkey"
+            columns: ["institution_id"]
+            isOneToOne: false
+            referencedRelation: "institutions"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       clients: {
         Row: {
           address: string | null

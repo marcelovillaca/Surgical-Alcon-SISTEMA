@@ -127,7 +127,7 @@ function ConfirmSurgeryModal({
     if (!date) return toast.error("La fecha es obligatoria");
     setLoading(true);
     try {
-      await onConfirm(date, lensId || undefined);
+      await onConfirm(date, lensId || undefined, (entry as any).dioptria);
       onClose();
     }
     catch (err: any) {
@@ -169,33 +169,43 @@ function ConfirmSurgeryModal({
               />
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-[10px] uppercase font-bold text-muted-foreground">Lente Intraocular Implantado (Stock)</Label>
-              <Select value={lensId} onValueChange={setLensId}>
-                <SelectTrigger className="h-12 bg-background/50 border-white/5">
-                  <SelectValue placeholder={loadingLenses ? "Cargando catálogo..." : "Seleccione lente..."} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Sin registrar lente ahora</SelectItem>
-                  {availableLenses.map(l => (
-                    <SelectItem key={l.id} value={l.id}>
-                      {l.name} ({l.sku})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-[10px] text-muted-foreground italic">Opcional: Al seleccionar una lente, se descontará automáticamente del stock de la sede.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Lente Seleccionado</Label>
+                <Select value={lensId} onValueChange={setLensId}>
+                  <SelectTrigger className="h-12 bg-background/50 border-white/5">
+                    <SelectValue placeholder={loadingLenses ? "Cargando..." : "Lente..."} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sin registrar lente</SelectItem>
+                    {availableLenses.map(l => (
+                      <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Dioptría Utilizada</Label>
+                <Input
+                  type="number"
+                  step="0.5"
+                  placeholder="Ej: +21.5"
+                  defaultValue={(entry as any).dioptria}
+                  onChange={(e) => (entry as any).dioptria = e.target.value}
+                  className="h-12 bg-background/50 border-white/5"
+                />
+              </div>
             </div>
 
             <div className="p-3 rounded-xl bg-blue-500/5 border border-blue-500/10 text-[11px] text-blue-400">
-              Al confirmar, el paciente pasará a estado <strong>Operado</strong>, el stock de la lente será debitado y se esperará el registro de AV post-op.
+              Al confirmar, el paciente pasará a estado <strong>Operado</strong> e o stock da lente será debitado. 
             </div>
           </div>
         </div>
         <DialogFooter className="p-6 pt-0 gap-3">
           <Button variant="ghost" onClick={onClose} className="flex-1 rounded-xl">Cancelar</Button>
           <Button onClick={handle} disabled={loading || !date} className="flex-1 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg">
-            {loading ? <Loader2 className="animate-spin" /> : "Confirmar Cirugía Realizada"}
+            {loading ? <Loader2 className="animate-spin" /> : "Confirmar Realización"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -236,8 +246,7 @@ export default function ConoftaLista() {
   const maskData = (v?: string) => !v ? "N/A" : v.slice(0, 3) + "****" + v.slice(-2);
   const toggleSensitive = (id: string) => setShowSensitive(p => ({ ...p, [id]: !p[id] }));
 
-  const isEntryApto = (e: WaitlistEntryType) =>
-    !!(e.exam_hemograma && e.exam_glicemia && e.exam_hba1c && e.exam_crasis && e.exam_orina);
+  const isEntryApto = (e: WaitlistEntryType) => !!e.exam_preop_complete;
 
   // ── base entries — EXCLUI concluídos e cancelados da lista geral ──────────
   const baseEntries = useMemo(() =>
@@ -304,20 +313,16 @@ export default function ConoftaLista() {
     return list;
   }, [baseEntries, searchTerm, selectedInstitution, selectedStatus, selectedMonth, sortField]);
 
-  // ── update exam toggle — só quando informado ──────────────────────────────
-  const updateExam = async (entryId: string, field: string, value: boolean, currentStatus: WaitlistStatus) => {
-    if (currentStatus !== "informado") return; // só edita quando pendente pre-op
+  // ── update exam toggle ──────────────────────────────────────────────────
+  const updateExam = async (entryId: string, value: boolean, currentStatus: WaitlistStatus) => {
+    if (currentStatus !== "informado") return; 
     try {
-      await supabase.from("conofta_waitlist" as any).update({ [field]: value }).eq("id", entryId);
-      setLocalEntries(prev => prev.map(e => e.id === entryId ? { ...e, [field]: value } : e));
-      const updated = localEntries.find(e => e.id === entryId);
-      if (updated && value && field.startsWith("exam_")) {
-        const projected = { ...updated, [field]: true };
-        if (isEntryApto(projected) && updated.status === "informado") {
-          toast.success("✅ ¡Todos los exámenes completos! Puedes marcar al paciente como Apto.");
-        }
+      await supabase.from("conofta_waitlist" as any).update({ exam_preop_complete: value }).eq("id", entryId);
+      setLocalEntries(prev => prev.map(e => e.id === entryId ? { ...e, exam_preop_complete: value } : e));
+      if (value) {
+        toast.success("✅ ¡Pre-Operatorio completo! Puedes marcar ao paciente como Apto.");
       }
-    } catch { toast.error("Error al actualizar examen"); }
+    } catch { toast.error("Error al actualizar pre-operatorio"); }
   };
 
   // ── action button logic ───────────────────────────────────────────────────
@@ -685,9 +690,14 @@ export default function ConoftaLista() {
                                 {entry.patient?.firstname?.[0]}
                               </div>
                               <div>
-                                <p className="font-bold text-foreground leading-tight truncate max-w-[130px] text-[12px]">
-                                  {entry.patient?.firstname} {entry.patient?.lastname}
-                                </p>
+                                <div className="flex items-center gap-1.5 leading-tight">
+                                  <p className="font-bold text-foreground truncate max-w-[130px] text-[12px]">
+                                    {entry.patient?.firstname} {entry.patient?.lastname}
+                                  </p>
+                                  <span className="font-mono text-[9px] text-primary/70 bg-primary/5 px-1 rounded border border-primary/10">
+                                    {entry.patient?.unique_code || "N/D"}
+                                  </span>
+                                </div>
                                 <p className="text-[10px] text-muted-foreground truncate max-w-[130px]">
                                   {getInstitutionName(entry.institution_id)}
                                 </p>
@@ -742,48 +752,27 @@ export default function ConoftaLista() {
                             </div>
                           </td>
 
-                          {/* Exámenes Pre-Op — editáveis APENAS quando informado, check quando apto */}
+                          {/* Exámenes Pre-Op — Único check */}
                           <td className="p-3">
                             <div className="flex flex-col items-center gap-1">
-                              {entry.status === "apto" || (entry.status !== "informado" && isApto) ? (
-                                // Paciente já apto: mostra check verde
+                              {entry.status === "apto" || (entry.status !== "informado" && entry.exam_preop_complete) ? (
                                 <div className="flex items-center gap-1">
                                   <CheckCheck className="h-4 w-4 text-emerald-400" />
-                                  <span className="text-[10px] text-emerald-400 font-bold">Pre-Op OK</span>
+                                  <span className="text-[10px] text-emerald-400 font-bold">Pre-Op Preparado</span>
                                 </div>
                               ) : entry.status === "informado" ? (
-                                // Pendente pre-op: checkboxes editáveis
-                                <div className="flex flex-col items-center gap-1">
-                                  <div className="flex gap-1">
-                                    {[
-                                      { key: "exam_hemograma", lbl: "H",   tip: "Hemograma" },
-                                      { key: "exam_glicemia",  lbl: "G",   tip: "Glicemia" },
-                                      { key: "exam_hba1c",     lbl: "A1c", tip: "HbA1c" },
-                                      { key: "exam_crasis",    lbl: "C",   tip: "Crasis" },
-                                      { key: "exam_orina",     lbl: "O",   tip: "Orina" },
-                                    ].map(ex => (
-                                      <TooltipProvider key={ex.key}>
-                                        <Tooltip>
-                                          <TooltipTrigger asChild>
-                                            <button
-                                              onClick={() => updateExam(entry.id!, ex.key, !(entry as any)[ex.key], entry.status)}
-                                              className={cn(
-                                                "h-6 min-w-[26px] rounded px-1 text-[9px] font-bold border transition-all hover:scale-110",
-                                                (entry as any)[ex.key]
-                                                  ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40"
-                                                  : "bg-zinc-800/50 text-zinc-600 border-white/5"
-                                              )}
-                                            >{ex.lbl}</button>
-                                          </TooltipTrigger>
-                                          <TooltipContent>{ex.tip}: {(entry as any)[ex.key] ? "✓ Completo" : "✗ Pendiente"}</TooltipContent>
-                                        </Tooltip>
-                                      </TooltipProvider>
-                                    ))}
-                                  </div>
-                                  <span className="text-[9px] text-zinc-600">
-                                    {[entry.exam_hemograma, entry.exam_glicemia, entry.exam_hba1c, entry.exam_crasis, entry.exam_orina].filter(Boolean).length}/5
-                                  </span>
-                                </div>
+                                <button
+                                  onClick={() => updateExam(entry.id!, !entry.exam_preop_complete, entry.status)}
+                                  className={cn(
+                                    "flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-bold border transition-all hover:scale-105",
+                                    entry.exam_preop_complete
+                                      ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40"
+                                      : "bg-zinc-800/50 text-zinc-500 border-white/5"
+                                  )}
+                                >
+                                  {entry.exam_preop_complete ? <CheckCircle2 className="h-3.5 w-3.5" /> : <ClipboardList className="h-3.5 w-3.5" />}
+                                  {entry.exam_preop_complete ? "Pre-Op Listo" : "Marcar Preparado"}
+                                </button>
                               ) : (
                                 <span className="text-[10px] text-zinc-700">—</span>
                               )}
@@ -955,29 +944,23 @@ export default function ConoftaLista() {
                   )}
                 </div>
                 {entry.status === "informado" && (
-                  <div className="col-span-2 flex items-center gap-1.5 flex-wrap">
-                    <span className="text-muted-foreground">Pre-Op:</span>
-                    {[
-                      { key: "exam_hemograma", lbl: "H" },
-                      { key: "exam_glicemia", lbl: "G" },
-                      { key: "exam_hba1c", lbl: "A1c" },
-                      { key: "exam_crasis", lbl: "C" },
-                      { key: "exam_orina", lbl: "O" },
-                    ].map(ex => (
-                      <button key={ex.key}
-                        onClick={() => updateExam(entry.id!, ex.key, !(entry as any)[ex.key], entry.status)}
-                        className={cn("h-7 min-w-[28px] rounded px-1.5 text-[10px] font-bold border transition-all active:scale-95",
-                          (entry as any)[ex.key] ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40" : "bg-zinc-800/50 text-zinc-600 border-white/5"
-                        )}
-                      >{ex.lbl}</button>
-                    ))}
-                    <span className="text-[10px] text-zinc-600">
-                      {[entry.exam_hemograma, entry.exam_glicemia, entry.exam_hba1c, entry.exam_crasis, entry.exam_orina].filter(Boolean).length}/5
-                    </span>
+                  <div className="col-span-2">
+                    <button
+                      onClick={() => updateExam(entry.id!, !entry.exam_preop_complete, entry.status)}
+                      className={cn(
+                        "w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-[11px] font-bold border transition-all active:scale-95",
+                        entry.exam_preop_complete
+                          ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40"
+                          : "bg-zinc-800/50 text-zinc-500 border-white/5"
+                      )}
+                    >
+                      {entry.exam_preop_complete ? <CheckCircle2 className="h-4 w-4" /> : <ClipboardList className="h-4 w-4" />}
+                      {entry.exam_preop_complete ? "Pre-Op Preparado" : "Pendiente de Pre-Op"}
+                    </button>
                   </div>
                 )}
-                {(entry.status === "apto" || (entry.status !== "informado" && isApto)) && (
-                  <div className="col-span-2 flex items-center gap-1.5">
+                {(entry.status === "apto" || (entry.status !== "informado" && entry.exam_preop_complete)) && (
+                  <div className="col-span-2 flex items-center gap-1.5 px-3 py-2 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
                     <CheckCheck className="h-4 w-4 text-emerald-400" />
                     <span className="text-emerald-400 font-bold text-[11px]">Exámenes Pre-Op OK</span>
                   </div>

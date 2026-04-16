@@ -51,7 +51,7 @@ const STEPS = [
 ];
 
 export default function Waitlist() {
-  const { addPatientToWaitlist } = useWaitlist();
+  const { addPatientToWaitlist, surgeons } = useWaitlist();
   const { role, institutionId } = useUserRole();
   const [institutions, setInstitutions] = useState<any[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -80,6 +80,8 @@ export default function Waitlist() {
       pre_op_va_od: "",
       pre_op_va_os: "",
       lgpd_consent: false,
+      surgeon_id: "",
+      exam_preop_complete: false,
     },
   });
 
@@ -135,6 +137,8 @@ export default function Waitlist() {
         has_hipertensao: data.has_hipertensao,
         has_anticoagulados: data.has_anticoagulados,
         requesting_doctor: data.requesting_doctor,
+        surgeon_id: data.surgeon_id,
+        exam_preop_complete: data.exam_preop_complete,
         pre_op_va_od: data.pre_op_va_od,
         pre_op_va_os: data.pre_op_va_os,
       };
@@ -294,18 +298,37 @@ export default function Waitlist() {
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Médico Solicitante *</Label>
-                <Input
-                  {...register("requesting_doctor")}
-                  required
-                  placeholder="Nombre del médico"
-                  list="solicitantes-list"
-                  className="h-14 text-base bg-background/50 border-border/50 focus:border-primary"
-                />
-                <datalist id="solicitantes-list">
-                  {solicitantes.map((s) => <option key={s} value={s} />)}
-                </datalist>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">Médico Cirujano (Responsable) *</Label>
+                  <Select
+                    value={watch("surgeon_id")}
+                    onValueChange={(v) => {
+                      setValue("surgeon_id", v);
+                      const s = surgeons.find(s => s.id === v);
+                      if (s) setValue("requesting_doctor", s.name);
+                    }}
+                  >
+                    <SelectTrigger className="h-14 text-base bg-background/50 border-border/50">
+                      <SelectValue placeholder="Seleccione Cirujano" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {surgeons.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">Médico Solicitante (Derivación)</Label>
+                  <Input
+                    {...register("requesting_doctor")}
+                    required
+                    placeholder="Nombre del médico"
+                    className="h-14 text-base bg-background/50 border-border/50 focus:border-primary"
+                  />
+                </div>
               </div>
 
               <div className="space-y-1.5">
@@ -566,22 +589,32 @@ export default function Waitlist() {
               </div>
             </button>
 
-            {/* Resumen del Ingreso */}
-            <div className="rounded-2xl border border-white/5 bg-muted/10 p-4 space-y-2 text-[11px]">
-              <p className="font-bold text-[10px] uppercase tracking-widest text-muted-foreground mb-3">Resumen del Ingreso</p>
-              <div className="grid grid-cols-2 gap-2">
-                <div><span className="text-muted-foreground">Paciente: </span><span className="font-bold">{watch("firstname")} {watch("lastname")}</span></div>
-                <div><span className="text-muted-foreground">Cédula: </span><span className="font-mono">{watch("cedula")}</span></div>
-                <div><span className="text-muted-foreground">Ojo: </span>
-                  <Badge className={cn("text-[9px] font-bold h-4 px-1",
-                    selectedEye === "OD" ? "bg-blue-500/10 text-blue-400 border-blue-500/20" :
-                    selectedEye === "OS" ? "bg-purple-500/10 text-purple-400 border-purple-500/20" :
-                                          "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                  )}>{selectedEye}</Badge>
-                </div>
-                <div><span className="text-muted-foreground">Médico: </span><span className="font-bold">{watch("requesting_doctor") || "—"}</span></div>
+            {/* Pre-Op Preparado Check — Simplificado */}
+            <button
+              type="button"
+              onClick={() => setValue("exam_preop_complete", !watch("exam_preop_complete"))}
+              className={cn(
+                "w-full flex items-center gap-4 p-5 rounded-2xl border-2 text-left transition-all active:scale-[0.99]",
+                watch("exam_preop_complete")
+                  ? "border-emerald-500/40 bg-emerald-500/5"
+                  : "border-border/50 bg-card/40"
+              )}
+            >
+              <div className={cn(
+                "h-6 w-6 rounded border-2 flex items-center justify-center shrink-0 transition-all",
+                watch("exam_preop_complete") ? "border-emerald-500 bg-emerald-500" : "border-border"
+              )}>
+                {watch("exam_preop_complete") && <CheckCircle2 className="h-4 w-4 text-white" />}
               </div>
-            </div>
+              <div>
+                <p className="font-black text-xs uppercase tracking-widest text-emerald-400 mb-1">
+                  Exámenes Pre-Op Listos
+                </p>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Marque esta opción si el paciente ya dispone de todos los exámenes pre-operatorios preparados.
+                </p>
+              </div>
+            </button>
 
             <div className="flex gap-3">
               <Button

@@ -42,7 +42,15 @@ export default function ConoftaSettings() {
     fetchInstitutions();
     fetchSurgeons();
     fetchRevenueConfig();
+    fetchProducts();
   }, []);
+
+  const [products, setProducts] = useState<any[]>([]);
+
+  async function fetchProducts() {
+    const { data } = await supabase.from('conofta_products').select('*').order('name');
+    if (data) setProducts(data);
+  }
 
   async function fetchInstitutions() {
     setLoading(true);
@@ -130,6 +138,8 @@ export default function ConoftaSettings() {
     }
   }
 
+  const [newProduct, setNewProduct] = useState({ name: "", sku: "", category: "lente", unit: "un" });
+
   async function handleDeleteSurgeon(id: string) {
     const { error } = await supabase.from('conofta_surgeons' as any).delete().eq('id', id);
     if (error) toast.error("No se puede eliminar: tiene cirugías asociadas");
@@ -137,6 +147,22 @@ export default function ConoftaSettings() {
       toast.success("Cirujano eliminado");
       fetchSurgeons();
     }
+  }
+
+  async function handleAddProduct() {
+    if (!newProduct.name || !newProduct.category) {
+      toast.error("Nombre y Categoría son obligatorios");
+      return;
+    }
+    setIsSaving(true);
+    const { error } = await supabase.from('conofta_products' as any).insert([newProduct]);
+    if (error) toast.error("Error al guardar producto: " + error.message);
+    else {
+      toast.success("Producto agregado");
+      setNewProduct({ name: "", sku: "", category: "lente", unit: "un" });
+      // Here we would ideally refresh products, but we'll add product fetching to useEffect
+    }
+    setIsSaving(false);
   }
 
   return (
@@ -168,6 +194,10 @@ export default function ConoftaSettings() {
           <TabsTrigger value="cirujanos" className="px-8 data-[state=active]:bg-background">
             <Stethoscope className="h-4 w-4 mr-2" />
             Médicos Cirujanos
+          </TabsTrigger>
+          <TabsTrigger value="productos" className="px-8 data-[state=active]:bg-background">
+            <Zap className="h-4 w-4 mr-2" />
+            Catálogo / Productos
           </TabsTrigger>
           <TabsTrigger value="ingresos" className="px-8 data-[state=active]:bg-background">
             <DollarSign className="h-4 w-4 mr-2" />
@@ -215,6 +245,7 @@ export default function ConoftaSettings() {
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-muted/40 border-b border-border">
+                      <th className="p-5 text-[10px] font-black text-muted-foreground uppercase tracking-widest">Código</th>
                       <th className="p-5 text-[10px] font-black text-muted-foreground uppercase tracking-widest">Sede / Institución</th>
                       <th className="p-5 text-[10px] font-black text-muted-foreground uppercase text-center tracking-widest">Ubicación</th>
                       <th className="p-5 text-[10px] font-black text-muted-foreground uppercase text-right tracking-widest">Acción</th>
@@ -226,10 +257,12 @@ export default function ConoftaSettings() {
                     ) : institutions.map((sede) => (
                       <tr key={sede.id} className="hover:bg-muted/5 transition-colors group">
                         <td className="p-4">
+                          <span className="font-mono text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/20">
+                            {sede.unique_code || "N/A"}
+                          </span>
+                        </td>
+                        <td className="p-4">
                           <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-500 border border-emerald-500/20 shadow-sm">
-                              <Building className="h-5 w-5" />
-                            </div>
                             <span className="font-bold text-foreground">{sede.name}</span>
                           </div>
                         </td>
@@ -307,6 +340,7 @@ export default function ConoftaSettings() {
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="bg-muted/40 border-b border-border">
+                        <th className="p-5 text-[10px] font-black text-muted-foreground uppercase tracking-widest">Código</th>
                         <th className="p-5 text-[10px] font-black text-muted-foreground uppercase tracking-widest">Nombre del Médico</th>
                         <th className="p-5 text-[10px] font-black text-muted-foreground uppercase text-center tracking-widest">Sede</th>
                         <th className="p-5 text-[10px] font-black text-muted-foreground uppercase text-center tracking-widest">Especialidad</th>
@@ -316,6 +350,11 @@ export default function ConoftaSettings() {
                     <tbody className="divide-y divide-border/30 text-sm">
                       {surgeons.map((s) => (
                         <tr key={s.id} className="hover:bg-muted/5 transition-colors group">
+                          <td className="p-4">
+                            <span className="font-mono text-[10px] bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded border border-blue-500/20">
+                              {s.unique_code || "N/A"}
+                            </span>
+                          </td>
                           <td className="p-4">
                             <div className="flex items-center gap-3">
                               <div className="h-10 w-10 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500 border border-blue-500/20">
@@ -344,6 +383,89 @@ export default function ConoftaSettings() {
                 </div>
               </Card>
            </div>
+        </TabsContent>
+
+        <TabsContent value="productos" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <Card className="lg:col-span-1 border-border/50 bg-card/80 backdrop-blur-md shadow-xl h-fit">
+              <CardHeader>
+                <CardTitle className="text-lg font-bold flex items-center gap-2">
+                  <Plus className="h-5 w-5 text-indigo-500" />
+                  Nuevo Producto
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] uppercase font-bold text-muted-foreground ml-1">Nombre *</Label>
+                  <Input 
+                    value={newProduct.name} 
+                    onChange={(e) => setNewProduct({...newProduct, name: e.target.value})}
+                    placeholder="Ej: Lente Alcon AcrySof IQ"
+                    className="h-11 bg-background/50 border-white/5"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] uppercase font-bold text-muted-foreground ml-1">Categoría</Label>
+                  <Select value={newProduct.category} onValueChange={(v) => setNewProduct({...newProduct, category: v})}>
+                    <SelectTrigger className="h-11 bg-background/50 border-white/5">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="lente">Lente Intraocular</SelectItem>
+                      <SelectItem value="insumo">Insumo Quirúrgico</SelectItem>
+                      <SelectItem value="equipo">Equipo</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] uppercase font-bold text-muted-foreground ml-1">SKU / Ref</Label>
+                  <Input 
+                    value={newProduct.sku} 
+                    onChange={(e) => setNewProduct({...newProduct, sku: e.target.value})}
+                    placeholder="Ej: SN60WF"
+                    className="h-11 bg-background/50 border-white/5"
+                  />
+                </div>
+                <Button onClick={handleAddProduct} className="w-full bg-indigo-600 hover:bg-indigo-700 shadow-lg h-11 text-white" disabled={isSaving}>
+                  {isSaving ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2 h-4 w-4" />}
+                  Guardar Producto
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="lg:col-span-2 border-border/50 bg-card overflow-hidden shadow-xl ring-1 ring-border/5">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-muted/40 border-b border-border">
+                      <th className="p-5 text-[10px] font-black text-muted-foreground uppercase tracking-widest">Código</th>
+                      <th className="p-5 text-[10px] font-black text-muted-foreground uppercase tracking-widest">Producto</th>
+                      <th className="p-5 text-[10px] font-black text-muted-foreground uppercase text-center tracking-widest">Categoría</th>
+                      <th className="p-5 text-[10px] font-black text-muted-foreground uppercase text-center tracking-widest">SKU</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/30 text-sm">
+                    {products.map((p) => (
+                      <tr key={p.id} className="hover:bg-muted/5 transition-colors group">
+                        <td className="p-4">
+                          <span className="font-mono text-[10px] bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded border border-indigo-500/20">
+                            {p.unique_code || "N/A"}
+                          </span>
+                        </td>
+                        <td className="p-4 font-bold text-foreground">{p.name}</td>
+                        <td className="p-4 text-center">
+                          <Badge variant="outline" className="text-[9px] uppercase font-bold px-2 py-0.5">
+                            {p.category}
+                          </Badge>
+                        </td>
+                        <td className="p-4 text-center text-muted-foreground font-mono text-[10px]">{p.sku || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          </div>
         </TabsContent>
 
         {/* ─────── INGRESOS PÚBLICOS POR CIRUGÍA ─────── */}

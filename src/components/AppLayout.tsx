@@ -3,9 +3,9 @@ import {
   LayoutDashboard, Package, Users, ClipboardList, MapPin, Truck,
   TrendingUp, Settings, ChevronLeft, ChevronRight, LogOut, Shield,
   FileDown, FileText, BarChart2, PieChart, ClipboardCheck, UserCog,
-  BarChart3, Menu, X, Home, Warehouse, Activity,
+  BarChart3, Menu, X, Home, Warehouse, Activity, Clock,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole, AppRole, ALCON_ROLES, CONOFTA_ROLES } from "@/hooks/useUserRole";
@@ -87,15 +87,24 @@ const menuGroups: Record<"alcon" | "conofta", MenuGroup[]> = {
   ],
 };
 
+const IDLE_TIMEOUT_MS  = 30 * 60 * 1000; // 30 min
+const WARN_BEFORE_MS   =  5 * 60 * 1000; // warn 5 min before
+
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const [collapsed, setCollapsed] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [collapsed, setCollapsed]       = useState(false);
+  const [mobileOpen, setMobileOpen]     = useState(false);
+  const [idleWarning, setIdleWarning]   = useState(false);
+  const [countdown, setCountdown]       = useState(WARN_BEFORE_MS / 1000);
+  const idleTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const warnTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const countRef    = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const location = useLocation();
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const { role } = useUserRole();
 
-  const roleIsAlconOnly  = role !== null && ALCON_ROLES.includes(role as AppRole);
+  const roleIsAlconOnly   = role !== null && ALCON_ROLES.includes(role as AppRole);
   const roleIsConoftaOnly = role !== null && CONOFTA_ROLES.includes(role as AppRole);
 
   const defaultModule: "alcon" | "conofta" = roleIsConoftaOnly ? "conofta" : "alcon";
@@ -104,6 +113,54 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (roleIsConoftaOnly) setActiveModule("conofta");
   }, [roleIsConoftaOnly]);
+
+  // ── Idle timeout ────────────────────────────────────────────────────────────
+  const clearTimers = useCallback(() => {
+    if (idleTimer.current) clearTimeout(idleTimer.current);
+    if (warnTimer.current) clearTimeout(warnTimer.current);
+    if (countRef.current)  clearInterval(countRef.current);
+  }, []);
+
+  const handleAutoLogout = useCallback(async () => {
+    clearTimers();
+    setIdleWarning(false);
+    await signOut();
+    navigate("/auth");
+  }, [clearTimers, signOut, navigate]);
+
+  const resetIdleTimer = useCallback(() => {
+    clearTimers();
+    setIdleWarning(false);
+    setCountdown(WARN_BEFORE_MS / 1000);
+
+    // Show warning 5 min before expiry
+    warnTimer.current = setTimeout(() => {
+      setIdleWarning(true);
+      setCountdown(WARN_BEFORE_MS / 1000);
+      countRef.current = setInterval(() => {
+        setCountdown(prev => {
+          if (prev <= 1) { clearInterval(countRef.current!); return 0; }
+          return prev - 1;
+        });
+      }, 1000);
+    }, IDLE_TIMEOUT_MS - WARN_BEFORE_MS);
+
+    // Auto logout after full timeout
+    idleTimer.current = setTimeout(handleAutoLogout, IDLE_TIMEOUT_MS);
+  }, [clearTimers, handleAutoLogout]);
+
+  useEffect(() => {
+    if (!user) return;
+    const events = ["mousemove", "mousedown", "keypress", "scroll", "touchstart", "click"] as const;
+    const reset = () => resetIdleTimer();
+    events.forEach(e => window.addEventListener(e, reset, { passive: true }));
+    resetIdleTimer();
+    return () => {
+      events.forEach(e => window.removeEventListener(e, reset));
+      clearTimers();
+    };
+  }, [user, resetIdleTimer, clearTimers]);
+  // ────────────────────────────────────────────────────────────────────────────
 
   // Close mobile drawer on route change
   useEffect(() => {
@@ -257,7 +314,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* User + Controls (Fixed at bottom) */}
       <div className="border-t border-border p-3 space-y-2 shrink-0 bg-sidebar">
         {!collapsed && (
-          <div className="flex items-center gap-2.5 px-2 mb-2">
+          <NavLink to="/perfil" className="flex items-center gap-2.5 px-2 mb-2 hover:bg-muted/50 rounded-xl transition-all">
             <div className="h-8 w-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
               <span className="text-xs font-bold text-primary">
                 {user?.user_metadata?.full_name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || "U"}
@@ -267,7 +324,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <p className="text-xs font-semibold text-foreground truncate">{user?.user_metadata?.full_name || "Usuario"}</p>
               <p className="text-[10px] text-primary font-medium">{role ? roleLabels[role] || role : "Sin rol"}</p>
             </div>
-          </div>
+          </NavLink>
         )}
         <div className="flex gap-1">
           {/* Collapse toggle — desktop only */}
@@ -292,6 +349,43 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-background">
+
+      {/* ─── IDLE WARNING DIALOG ─── */}
+      {idleWarning && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="bg-card border border-amber-500/30 rounded-2xl p-8 shadow-2xl max-w-sm w-full mx-4 animate-in zoom-in-95">
+            <div className="flex flex-col items-center gap-4 text-center">
+              <div className="h-16 w-16 rounded-full bg-amber-500/10 border-2 border-amber-500/30 flex items-center justify-center">
+                <Clock className="h-8 w-8 text-amber-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-foreground">¿Sigues ahí?</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Por inactividad, tu sesión se cerrará en
+                </p>
+                <p className="text-4xl font-black text-amber-400 mt-2">
+                  {Math.floor(countdown / 60)}:{String(countdown % 60).padStart(2, "0")}
+                </p>
+              </div>
+              <div className="flex gap-3 w-full">
+                <button
+                  onClick={handleAutoLogout}
+                  className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted transition-colors"
+                >
+                  Cerrar sesión
+                </button>
+                <button
+                  onClick={resetIdleTimer}
+                  className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-sm transition-colors"
+                >
+                  Seguir activo
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {/* ─── DESKTOP SIDEBAR ─── */}
       <aside
@@ -345,7 +439,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
 
           {/* Right: user info */}
-          <div className="flex items-center gap-2 md:gap-4">
+          <NavLink to="/perfil" className="flex items-center gap-2 md:gap-4 hover:bg-muted/50 p-1 rounded-xl transition-all">
             <div className="hidden sm:block text-right">
               <p className="text-sm font-medium text-foreground leading-tight">
                 {user?.user_metadata?.full_name?.split(" ")[0] || "Usuario"}
@@ -359,7 +453,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 {user?.user_metadata?.full_name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || "U"}
               </span>
             </div>
-          </div>
+          </NavLink>
         </header>
 
         {/* Page Content - Using body scroll for maximum browser compatibility */}

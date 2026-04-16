@@ -93,42 +93,68 @@ export function detectTemplate(headers: string[]): "ventas" | "targets" | "clien
 
 export function parseExcelDate(val: any): string {
   if (!val) return "";
+  
+  // 1. Digital Excel Serial Number
   if (typeof val === "number") {
     try {
       const d = XLSX.SSF.parse_date_code(val);
       return `${d.y}-${String(d.m).padStart(2, "0")}-${String(d.d).padStart(2, "0")}`;
     } catch { return ""; }
   }
+  
   const s = String(val).trim();
   if (!s) return "";
+  
+  // 2. Already ISO (YYYY-MM-DD)
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.substring(0, 10);
+  
+  // 3. DD/MM/YYYY or DD-MM-YYYY (Common in LatAm)
+  const ddmmyyyy = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (ddmmyyyy) {
+    const day = ddmmyyyy[1].padStart(2, "0");
+    const month = ddmmyyyy[2].padStart(2, "0");
+    const year = ddmmyyyy[3];
+    return `${year}-${month}-${day}`;
+  }
+
+  // 4. Fallback to JS Date constructor (be careful with locales)
   const d = new Date(val);
   if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+  
   return s;
 }
 
 export function toNum(val: any): number {
   if (val === null || val === undefined || val === "") return 0;
   if (typeof val === "number") return val;
+  
   const s = String(val).trim();
+  if (!s) return 0;
+
+  // Clean characters that are not digits, dots or commas
   const cleaned = s.replace(/[^0-9,.]/g, "");
+  if (!cleaned) return 0;
+
   const lastComma = cleaned.lastIndexOf(",");
   const lastDot = cleaned.lastIndexOf(".");
 
   if (lastComma > lastDot) {
-    // 1.234,56 -> 1234.56
+    // Format: 1.234,56 (European/LatAm) -> 1234.56
     return Number(cleaned.replace(/\./g, "").replace(",", "."));
   } else if (lastDot > lastComma) {
-    // Check if it's 1.234 (thousand) or 1.23 (decimal)
+    // Format: 1,234.56 (US) or 1.234 (LatAm Integer)
     const parts = cleaned.split(".");
-    if (parts.length > 2 || (parts.length === 2 && parts[1].length === 3)) {
-      // 1.234 or 1.234.567 -> thousand separator
-      return Number(cleaned.replace(/\./g, ""));
+    // If it has multiple dots or ends with 3 digits after a single dot, 
+    // it's likely a thousand separator in LatAm (e.g. 1.250)
+    if (parts.length > 2 || (parts.length === 2 && parts[1].length === 3 && !cleaned.includes(","))) {
+       return Number(cleaned.replace(/\./g, "").replace(",", ""));
     }
-    // 1.23 -> decimal
-    return Number(cleaned);
+    // Standard US format 1,234.56
+    return Number(cleaned.replace(/,/g, ""));
   }
-  return Number(cleaned);
+  
+  // No dots or commas, or weird case
+  return Number(cleaned) || 0;
 }
 
 export function parseSalesSheet(sheet: XLSX.WorkSheet): { rows: SalesRow[]; errors: string[]; skipped: number } {
