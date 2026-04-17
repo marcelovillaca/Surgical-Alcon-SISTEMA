@@ -92,9 +92,10 @@ type SortField = "date_asc" | "date_desc" | "status";
 // ─── Confirm Surgery Modal (agendado → operado) ────────────────────────────────
 function ConfirmSurgeryModal({
   entry, onClose, onConfirm,
-}: { entry: WaitlistEntryType | null; onClose: () => void; onConfirm: (date: string, lensId?: string) => Promise<void> }) {
-  const [date, setDate] = useState(entry?.surgery_date || new Date().toISOString().split("T")[0]);
+}: { entry: WaitlistEntryType | null; onClose: () => void; onConfirm: (date: string, lensId?: string, dioptria?: string) => Promise<void> }) {
+  const [date, setDate]     = useState(entry?.surgery_date || new Date().toISOString().split("T")[0]);
   const [lensId, setLensId] = useState<string>("");
+  const [dioptria, setDioptria] = useState<string>((entry as any)?.dioptria || "");
   const [availableLenses, setAvailableLenses] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingLenses, setLoadingLenses] = useState(false);
@@ -102,6 +103,7 @@ function ConfirmSurgeryModal({
   useEffect(() => {
     if (entry) {
       setDate(entry.actual_surgery_date || (entry.surgery_date ?? new Date().toISOString().split("T")[0]));
+      setDioptria((entry as any)?.dioptria || "");
       fetchAvailableLenses(entry.assigned_institution_id || entry.institution_id);
     }
   }, [entry]);
@@ -127,7 +129,7 @@ function ConfirmSurgeryModal({
     if (!date) return toast.error("La fecha es obligatoria");
     setLoading(true);
     try {
-      await onConfirm(date, lensId || undefined, (entry as any).dioptria);
+      await onConfirm(date, lensId || undefined, dioptria || undefined);
       onClose();
     }
     catch (err: any) {
@@ -190,8 +192,8 @@ function ConfirmSurgeryModal({
                   type="number"
                   step="0.5"
                   placeholder="Ej: +21.5"
-                  defaultValue={(entry as any).dioptria}
-                  onChange={(e) => (entry as any).dioptria = e.target.value}
+                  value={dioptria}
+                  onChange={(e) => setDioptria(e.target.value)}
                   className="h-12 bg-background/50 border-white/5"
                 />
               </div>
