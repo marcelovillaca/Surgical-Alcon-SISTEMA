@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { 
   MapPin, Users, Calendar, Activity, Navigation, 
   Search, Filter, ArrowUpRight, Clock, ShieldCheck, 
-  Map as MapIcon, Layers, Target, AlertTriangle, ChevronRight
+  Map as MapIcon, Layers, Target, AlertTriangle, ChevronRight, Maximize2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
