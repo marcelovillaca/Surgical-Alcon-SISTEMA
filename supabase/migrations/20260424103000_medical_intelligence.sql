@@ -44,15 +44,105 @@ CREATE INDEX IF NOT EXISTS idx_clients_type
   ON public.clients(client_type);
 
 -- ============================================================
--- 1.2 client_institutions: add volume per institution and
---     primary flag
+-- 1.2 client_institutions: ensure table exists, then add
+--     volume and primary flag columns
 -- ============================================================
+
+-- Ensure institutions table exists (dependency)
+CREATE TABLE IF NOT EXISTS public.institutions (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name       text NOT NULL,
+  type       text DEFAULT 'clinica',
+  city       text,
+  address    text,
+  phone      text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  created_by uuid REFERENCES auth.users(id)
+);
+
+ALTER TABLE public.institutions ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename='institutions'
+    AND policyname='Authenticated can read institutions'
+  ) THEN
+    CREATE POLICY "Authenticated can read institutions"
+      ON public.institutions FOR SELECT USING (true);
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename='institutions'
+    AND policyname='Gerente can manage institutions'
+  ) THEN
+    CREATE POLICY "Gerente can manage institutions"
+      ON public.institutions FOR ALL USING (is_gerente());
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename='institutions'
+    AND policyname='Visitador can create institutions'
+  ) THEN
+    CREATE POLICY "Visitador can create institutions"
+      ON public.institutions FOR INSERT WITH CHECK (is_visitador());
+  END IF;
+END $$;
+
+-- Create the table if it was never applied to this database
+CREATE TABLE IF NOT EXISTS public.client_institutions (
+  id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  client_id      uuid NOT NULL REFERENCES public.clients(id) ON DELETE CASCADE,
+  institution_id uuid NOT NULL REFERENCES public.institutions(id) ON DELETE CASCADE,
+  created_at     timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(client_id, institution_id)
+);
+
+-- Enable RLS if not already enabled
+ALTER TABLE public.client_institutions ENABLE ROW LEVEL SECURITY;
+
+-- Recreate policies idempotently
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE tablename = 'client_institutions'
+    AND policyname = 'Authenticated can read client_institutions'
+  ) THEN
+    CREATE POLICY "Authenticated can read client_institutions"
+      ON public.client_institutions FOR SELECT USING (true);
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE tablename = 'client_institutions'
+    AND policyname = 'Gerente can manage client_institutions'
+  ) THEN
+    CREATE POLICY "Gerente can manage client_institutions"
+      ON public.client_institutions FOR ALL USING (is_gerente());
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE tablename = 'client_institutions'
+    AND policyname = 'Visitador can manage client_institutions'
+  ) THEN
+    CREATE POLICY "Visitador can manage client_institutions"
+      ON public.client_institutions FOR ALL USING (is_visitador());
+  END IF;
+END $$;
+
+-- Now add new columns (idempotent)
 ALTER TABLE public.client_institutions
   ADD COLUMN IF NOT EXISTS monthly_surgery_volume int DEFAULT 0
     CHECK (monthly_surgery_volume >= 0),
-
   ADD COLUMN IF NOT EXISTS is_primary boolean DEFAULT false,
-
   ADD COLUMN IF NOT EXISTS volume_updated_at timestamptz,
   ADD COLUMN IF NOT EXISTS volume_updated_by uuid;
 
@@ -65,6 +155,7 @@ COMMENT ON COLUMN public.client_institutions.is_primary IS
 CREATE UNIQUE INDEX IF NOT EXISTS idx_client_primary_institution
   ON public.client_institutions(client_id)
   WHERE is_primary = true;
+
 
 -- ============================================================
 -- PART 2: NEW TABLES
