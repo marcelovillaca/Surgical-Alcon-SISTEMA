@@ -78,7 +78,8 @@ DO $$ BEGIN
     AND policyname='Gerente can manage institutions'
   ) THEN
     CREATE POLICY "Gerente can manage institutions"
-      ON public.institutions FOR ALL USING (is_gerente());
+      ON public.institutions FOR ALL
+      USING (EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = auth.uid() AND role = 'gerente'));
   END IF;
 END $$;
 
@@ -88,7 +89,8 @@ DO $$ BEGIN
     AND policyname='Visitador can create institutions'
   ) THEN
     CREATE POLICY "Visitador can create institutions"
-      ON public.institutions FOR INSERT WITH CHECK (is_visitador());
+      ON public.institutions FOR INSERT
+      WITH CHECK (EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = auth.uid() AND role IN ('visitador','gerente')));
   END IF;
 END $$;
 
@@ -123,7 +125,8 @@ DO $$ BEGIN
     AND policyname = 'Gerente can manage client_institutions'
   ) THEN
     CREATE POLICY "Gerente can manage client_institutions"
-      ON public.client_institutions FOR ALL USING (is_gerente());
+      ON public.client_institutions FOR ALL
+      USING (EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = auth.uid() AND role = 'gerente'));
   END IF;
 END $$;
 
@@ -131,10 +134,12 @@ DO $$ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies
     WHERE tablename = 'client_institutions'
-    AND policyname = 'Visitador can manage client_institutions'
+    AND policyname = 'Authenticated can manage client_institutions'
   ) THEN
-    CREATE POLICY "Visitador can manage client_institutions"
-      ON public.client_institutions FOR ALL USING (is_visitador());
+    CREATE POLICY "Authenticated can manage client_institutions"
+      ON public.client_institutions FOR ALL
+      USING (auth.uid() IS NOT NULL)
+      WITH CHECK (auth.uid() IS NOT NULL);
   END IF;
 END $$;
 
@@ -208,7 +213,9 @@ CREATE POLICY "Visitadores and gerentes can update equipment"
   TO authenticated USING (true);
 CREATE POLICY "Gerentes can delete equipment"
   ON public.institution_equipment FOR DELETE
-  TO authenticated USING (is_gerente());
+  TO authenticated USING (
+    EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = auth.uid() AND role = 'gerente')
+  );
 
 -- ============================================================
 -- 2.2 institution_key_contacts
@@ -311,7 +318,9 @@ CREATE POLICY "Anyone authenticated can read classifications"
   TO authenticated USING (true);
 CREATE POLICY "Gerentes can manage classifications"
   ON public.product_iol_classification FOR ALL
-  TO authenticated USING (is_gerente()) WITH CHECK (is_gerente());
+  TO authenticated
+  USING (EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = auth.uid() AND role = 'gerente'))
+  WITH CHECK (EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = auth.uid() AND role = 'gerente'));
 
 -- ============================================================
 -- 2.4 client_intelligence
