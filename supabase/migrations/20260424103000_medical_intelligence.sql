@@ -6,12 +6,15 @@
 --   segmentation engine (GROW/PARTNER/PROTECT/CHECK-IN)
 -- ============================================================
 
+-- Ensure all unqualified table references resolve to public schema
+SET search_path TO public;
+
 -- ============================================================
 -- PART 1: ALTER EXISTING TABLES (additive, non-breaking)
 -- ============================================================
 
 -- 1.1 clients: add type, subspecialties, primary institution
-ALTER TABLE clients
+ALTER TABLE public.clients
   ADD COLUMN IF NOT EXISTS client_type text
     DEFAULT 'doctor'
     CHECK (client_type IN ('doctor', 'institution')),
@@ -27,24 +30,24 @@ ALTER TABLE clients
 
   ADD COLUMN IF NOT EXISTS segment_auto_updated_at timestamptz;
 
-COMMENT ON COLUMN clients.client_type IS
+COMMENT ON COLUMN public.clients.client_type IS
   'doctor = individual physician decision maker | institution = foundation/hospital evaluated as a whole';
-COMMENT ON COLUMN clients.subspecialties IS
+COMMENT ON COLUMN public.clients.subspecialties IS
   'Array: cataract_refractive, retina, glaucoma, oculoplastics, pediatric, clinical';
-COMMENT ON COLUMN clients.segment_auto IS
+COMMENT ON COLUMN public.clients.segment_auto IS
   'Calculated by engine. segment field remains editable manually as override.';
 
 -- Index for subspecialty filtering
 CREATE INDEX IF NOT EXISTS idx_clients_subspecialties
-  ON clients USING gin(subspecialties);
+  ON public.clients USING gin(subspecialties);
 CREATE INDEX IF NOT EXISTS idx_clients_type
-  ON clients(client_type);
+  ON public.clients(client_type);
 
 -- ============================================================
 -- 1.2 client_institutions: add volume per institution and
 --     primary flag
 -- ============================================================
-ALTER TABLE client_institutions
+ALTER TABLE public.client_institutions
   ADD COLUMN IF NOT EXISTS monthly_surgery_volume int DEFAULT 0
     CHECK (monthly_surgery_volume >= 0),
 
@@ -53,14 +56,14 @@ ALTER TABLE client_institutions
   ADD COLUMN IF NOT EXISTS volume_updated_at timestamptz,
   ADD COLUMN IF NOT EXISTS volume_updated_by uuid;
 
-COMMENT ON COLUMN client_institutions.monthly_surgery_volume IS
+COMMENT ON COLUMN public.client_institutions.monthly_surgery_volume IS
   'Estimated surgeries/month this doctor performs at this institution.';
-COMMENT ON COLUMN client_institutions.is_primary IS
+COMMENT ON COLUMN public.client_institutions.is_primary IS
   'True = this is the doctor''s main institution (designated by visitador).';
 
 -- Ensure only one primary per client
 CREATE UNIQUE INDEX IF NOT EXISTS idx_client_primary_institution
-  ON client_institutions(client_id)
+  ON public.client_institutions(client_id)
   WHERE is_primary = true;
 
 -- ============================================================
@@ -71,7 +74,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_client_primary_institution
 -- Equipment per institution: phaco, vitrectomy, microscope, biometer
 -- Multiple units of the same type allowed
 -- ============================================================
-CREATE TABLE IF NOT EXISTS institution_equipment (
+CREATE TABLE IF NOT EXISTS public.institution_equipment (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   institution_id uuid NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
   created_by    uuid REFERENCES profiles(id),
@@ -93,27 +96,27 @@ CREATE TABLE IF NOT EXISTS institution_equipment (
   notes         text
 );
 
-COMMENT ON TABLE institution_equipment IS
+COMMENT ON TABLE public.institution_equipment IS
   'Surgical equipment per institution. A clinic can have multiple units of the same type.';
 
 CREATE INDEX IF NOT EXISTS idx_inst_equipment_institution
-  ON institution_equipment(institution_id);
+  ON public.institution_equipment(institution_id);
 CREATE INDEX IF NOT EXISTS idx_inst_equipment_type
-  ON institution_equipment(equipment_type);
+  ON public.institution_equipment(equipment_type);
 
 -- RLS
-ALTER TABLE institution_equipment ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.institution_equipment ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Authenticated users can read equipment"
-  ON institution_equipment FOR SELECT
+  ON public.institution_equipment FOR SELECT
   TO authenticated USING (true);
 CREATE POLICY "Visitadores and gerentes can insert equipment"
-  ON institution_equipment FOR INSERT
+  ON public.institution_equipment FOR INSERT
   TO authenticated WITH CHECK (true);
 CREATE POLICY "Visitadores and gerentes can update equipment"
-  ON institution_equipment FOR UPDATE
+  ON public.institution_equipment FOR UPDATE
   TO authenticated USING (true);
 CREATE POLICY "Gerentes can delete equipment"
-  ON institution_equipment FOR DELETE
+  ON public.institution_equipment FOR DELETE
   TO authenticated USING (is_gerente());
 
 -- ============================================================
@@ -121,7 +124,7 @@ CREATE POLICY "Gerentes can delete equipment"
 -- Decision makers per institution (can be a registered doctor
 -- or an external person such as a purchasing manager)
 -- ============================================================
-CREATE TABLE IF NOT EXISTS institution_key_contacts (
+CREATE TABLE IF NOT EXISTS public.institution_key_contacts (
   id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   institution_id uuid NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
   created_by     uuid REFERENCES profiles(id),
@@ -149,21 +152,21 @@ CREATE TABLE IF NOT EXISTS institution_key_contacts (
     CHECK (client_id IS NOT NULL OR external_name IS NOT NULL)
 );
 
-COMMENT ON TABLE institution_key_contacts IS
+COMMENT ON TABLE public.institution_key_contacts IS
   'Key decision makers per institution. Can be registered doctors (client_id) or external contacts.';
 
 CREATE INDEX IF NOT EXISTS idx_key_contacts_institution
-  ON institution_key_contacts(institution_id);
+  ON public.institution_key_contacts(institution_id);
 CREATE INDEX IF NOT EXISTS idx_key_contacts_client
-  ON institution_key_contacts(client_id);
+  ON public.institution_key_contacts(client_id);
 
 -- RLS
-ALTER TABLE institution_key_contacts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.institution_key_contacts ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Authenticated can read key contacts"
-  ON institution_key_contacts FOR SELECT
+  ON public.institution_key_contacts FOR SELECT
   TO authenticated USING (true);
 CREATE POLICY "Authenticated can manage key contacts"
-  ON institution_key_contacts FOR ALL
+  ON public.institution_key_contacts FOR ALL
   TO authenticated USING (true) WITH CHECK (true);
 
 -- ============================================================
@@ -171,7 +174,7 @@ CREATE POLICY "Authenticated can manage key contacts"
 -- Maps product names/patterns to the 4 IOL categories
 -- Used for premium mix calculation
 -- ============================================================
-CREATE TABLE IF NOT EXISTS product_iol_classification (
+CREATE TABLE IF NOT EXISTS public.product_iol_classification (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   product_pattern text NOT NULL,  -- matched against sales_details.producto (ILIKE)
   iol_category    text NOT NULL
@@ -185,12 +188,12 @@ CREATE TABLE IF NOT EXISTS product_iol_classification (
   created_at      timestamptz DEFAULT now()
 );
 
-COMMENT ON TABLE product_iol_classification IS
+COMMENT ON TABLE public.product_iol_classification IS
   'Pattern matching table to classify IOL products into 4 categories for premium mix analysis.';
 
 -- Seed initial classification patterns
 -- These should be reviewed and adjusted to match actual product names in sales_details
-INSERT INTO product_iol_classification (product_pattern, iol_category, notes) VALUES
+INSERT INTO public.product_iol_classification (product_pattern, iol_category, notes) VALUES
   -- Premium Tórico
   ('%PANOPTIX%TORIC%',      'premium_toric',     'AcrySof IQ PanOptix Toric'),
   ('%VIVITY%TORIC%',        'premium_toric',     'AcrySof IQ Vivity Toric'),
@@ -211,12 +214,12 @@ INSERT INTO product_iol_classification (product_pattern, iol_category, notes) VA
 ON CONFLICT DO NOTHING;
 
 -- RLS
-ALTER TABLE product_iol_classification ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.product_iol_classification ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Anyone authenticated can read classifications"
-  ON product_iol_classification FOR SELECT
+  ON public.product_iol_classification FOR SELECT
   TO authenticated USING (true);
 CREATE POLICY "Gerentes can manage classifications"
-  ON product_iol_classification FOR ALL
+  ON public.product_iol_classification FOR ALL
   TO authenticated USING (is_gerente()) WITH CHECK (is_gerente());
 
 -- ============================================================
@@ -224,7 +227,7 @@ CREATE POLICY "Gerentes can manage classifications"
 -- Computed segmentation result per client/doctor.
 -- One row per client, updated whenever volume or sales change.
 -- ============================================================
-CREATE TABLE IF NOT EXISTS client_intelligence (
+CREATE TABLE IF NOT EXISTS public.client_intelligence (
   id                      uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   client_id               uuid NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
   calculated_at           timestamptz DEFAULT now(),
@@ -274,28 +277,28 @@ CREATE TABLE IF NOT EXISTS client_intelligence (
   UNIQUE(client_id)
 );
 
-COMMENT ON TABLE client_intelligence IS
+COMMENT ON TABLE public.client_intelligence IS
   'Computed segmentation per doctor/institution. Updated when volume or sales data changes.';
 
 CREATE INDEX IF NOT EXISTS idx_intelligence_client
-  ON client_intelligence(client_id);
+  ON public.client_intelligence(client_id);
 CREATE INDEX IF NOT EXISTS idx_intelligence_segment
-  ON client_intelligence(segment);
+  ON public.client_intelligence(segment);
 
 -- RLS
-ALTER TABLE client_intelligence ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.client_intelligence ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Authenticated can read intelligence"
-  ON client_intelligence FOR SELECT
+  ON public.client_intelligence FOR SELECT
   TO authenticated USING (true);
 CREATE POLICY "System can write intelligence"
-  ON client_intelligence FOR ALL
+  ON public.client_intelligence FOR ALL
   TO authenticated USING (true) WITH CHECK (true);
 
 -- ============================================================
 -- 2.5 client_segment_history
 -- Immutable audit trail of every segment change per client
 -- ============================================================
-CREATE TABLE IF NOT EXISTS client_segment_history (
+CREATE TABLE IF NOT EXISTS public.client_segment_history (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   client_id       uuid NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
   recorded_at     timestamptz DEFAULT now(),
@@ -311,21 +314,21 @@ CREATE TABLE IF NOT EXISTS client_segment_history (
   reason          text
 );
 
-COMMENT ON TABLE client_segment_history IS
+COMMENT ON TABLE public.client_segment_history IS
   'Immutable log of every segmentation change. Used for trend analysis.';
 
 CREATE INDEX IF NOT EXISTS idx_seg_history_client
-  ON client_segment_history(client_id);
+  ON public.client_segment_history(client_id);
 CREATE INDEX IF NOT EXISTS idx_seg_history_date
-  ON client_segment_history(recorded_at DESC);
+  ON public.client_segment_history(recorded_at DESC);
 
 -- RLS
-ALTER TABLE client_segment_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.client_segment_history ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Authenticated can read history"
-  ON client_segment_history FOR SELECT
+  ON public.client_segment_history FOR SELECT
   TO authenticated USING (true);
 CREATE POLICY "System can insert history"
-  ON client_segment_history FOR INSERT
+  ON public.client_segment_history FOR INSERT
   TO authenticated WITH CHECK (true);
 
 -- ============================================================
@@ -333,7 +336,7 @@ CREATE POLICY "System can insert history"
 -- Generated whenever a visitador updates monthly_surgery_volume
 -- and the change exceeds the threshold (±10% or ±20%)
 -- ============================================================
-CREATE TABLE IF NOT EXISTS client_volume_alerts (
+CREATE TABLE IF NOT EXISTS public.client_volume_alerts (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   client_id       uuid NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
   institution_id  uuid REFERENCES institutions(id) ON DELETE SET NULL,
@@ -366,26 +369,26 @@ CREATE TABLE IF NOT EXISTS client_volume_alerts (
   notes           text
 );
 
-COMMENT ON TABLE client_volume_alerts IS
+COMMENT ON TABLE public.client_volume_alerts IS
   'Alerts generated when a doctor''s volume changes significantly. Manager must review and define action plan.';
 
 CREATE INDEX IF NOT EXISTS idx_vol_alerts_client
-  ON client_volume_alerts(client_id);
+  ON public.client_volume_alerts(client_id);
 CREATE INDEX IF NOT EXISTS idx_vol_alerts_unread
-  ON client_volume_alerts(is_read) WHERE is_read = false;
+  ON public.client_volume_alerts(is_read) WHERE is_read = false;
 CREATE INDEX IF NOT EXISTS idx_vol_alerts_date
-  ON client_volume_alerts(created_at DESC);
+  ON public.client_volume_alerts(created_at DESC);
 
 -- RLS
-ALTER TABLE client_volume_alerts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.client_volume_alerts ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Authenticated can read alerts"
-  ON client_volume_alerts FOR SELECT
+  ON public.client_volume_alerts FOR SELECT
   TO authenticated USING (true);
 CREATE POLICY "System can create alerts"
-  ON client_volume_alerts FOR INSERT
+  ON public.client_volume_alerts FOR INSERT
   TO authenticated WITH CHECK (true);
 CREATE POLICY "Gerentes can update alerts (mark read, add action)"
-  ON client_volume_alerts FOR UPDATE
+  ON public.client_volume_alerts FOR UPDATE
   TO authenticated USING (true);
 
 -- ============================================================
