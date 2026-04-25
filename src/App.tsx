@@ -33,6 +33,7 @@ const ConoftaSettings = lazy(() => import("./pages/ConoftaSettings"));
 const ConoftaLista = lazy(() => import("./pages/ConoftaLista"));
 const ConoftaInventario = lazy(() => import("./pages/ConoftaInventario"));
 const Profile = lazy(() => import("./pages/Profile"));
+const MedicalIntelligence = lazy(() => import("./pages/MedicalIntelligence"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const PlaceholderPage = lazy(() => import("@/components/PlaceholderPage"));
 
@@ -141,6 +142,7 @@ function ProtectedRoutes() {
         <Routes>
           <Route path="/" element={<SmartDashboard />} />
           <Route path="/crm" element={<RoleGuard allow={["gerente", "visitador"]}><CRM /></RoleGuard>} />
+          <Route path="/crm/intelligence/:id" element={<RoleGuard allow={["gerente", "visitador"]}><MedicalIntelligence /></RoleGuard>} />
           <Route path="/visitas" element={<RoleGuard allow={["gerente", "visitador"]}><Visitas /></RoleGuard>} />
           <Route path="/sfa/admin" element={<RoleGuard allow={["gerente"]}><SfaAdmin /></RoleGuard>} />
           <Route path="/pedidos" element={<RoleGuard allow={["gerente", "visitador", "bodega", "expedicion"]}><Pedidos /></RoleGuard>} />

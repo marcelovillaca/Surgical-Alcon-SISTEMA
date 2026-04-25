@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { Users, Search, Plus, Building, Link2, X, Upload, FileSpreadsheet, Loader2, ShoppingCart } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Users, Search, Plus, Building, Link2, X, Upload, FileSpreadsheet, Loader2, ShoppingCart, Activity, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -49,6 +50,7 @@ const freqLabels: Record<string, string> = {
 };
 
 export default function CRM() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { isGerente } = useUserRole();
   const { toast } = useToast();
@@ -61,6 +63,7 @@ export default function CRM() {
   const [showNewInst, setShowNewInst] = useState(false);
   const [linkClientId, setLinkClientId] = useState<string | null>(null);
   const [linkInstId, setLinkInstId] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   // New client form
   const [newFirstName, setNewFirstName] = useState("");
@@ -90,7 +93,9 @@ export default function CRM() {
 
   const fetchData = async () => {
     const [{ data: clientsData }, { data: instsData }] = await Promise.all([
-      (supabase.from("clients").select("id, name, first_name, last_name, cod_cliente, contact_name, city, segment, pricing_level, visit_frequency, email, phone, address") as any),
+      (supabase.from("clients")
+        .select("id, name, first_name, last_name, cod_cliente, contact_name, city, segment, pricing_level, visit_frequency, email, phone, address")
+        .eq("active", true) as any),
       supabase.from("institutions").select("id, name, type, city"),
     ]);
 
@@ -109,9 +114,12 @@ export default function CRM() {
   };
 
   const handleCreateClient = async () => {
-    if (!newFirstName || !user) return;
+    if (!newFirstName || !user || !linkInstId) {
+      toast({ title: "Datos incompletos", description: "El nombre y la institución son obligatorios.", variant: "destructive" });
+      return;
+    }
     const fullName = `${newFirstName} ${newLastName}`.trim();
-    const { error } = await supabase.from("clients").insert({
+    const { data: newClient, error } = await (supabase.from("clients").insert({
       name: fullName,
       first_name: newFirstName,
       last_name: newLastName,
@@ -126,9 +134,22 @@ export default function CRM() {
       phone: newPhone || null,
       created_by: user.id,
       assigned_to: user.id,
-    } as any);
+    } as any).select().single() as any);
+
     if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
-    toast({ title: "✅ Cliente creado", description: `${fullName} guardado exitosamente.` });
+
+    // Link mandatory institution
+    if (newClient) {
+      const { error: linkError } = await supabase
+        .from("client_institutions")
+        .insert({ client_id: newClient.id, institution_id: linkInstId, is_primary: true });
+
+      if (linkError) {
+        toast({ title: "⚠️ Parcial", description: "Cliente creado pero falló la vinculación a la institución." });
+      }
+    }
+
+    toast({ title: "✅ Cliente creado", description: `${fullName} guardado y vinculado exitosamente.` });
     setShowNewClient(false);
     resetForm();
     fetchData();
@@ -159,6 +180,22 @@ export default function CRM() {
     fetchData();
   };
 
+  const handleDeleteClient = async (id: string) => {
+    if (!window.confirm("¿Está seguro de eliminar este cliente? Se mantendrá en el historial pero no aparecerá en las listas activas.")) return;
+    
+    const { error } = await supabase
+      .from("clients")
+      .update({ active: false } as any)
+      .eq("id", id);
+
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Cliente eliminado", description: "El cliente ha sido desactivado exitosamente." });
+      fetchData();
+    }
+  };
+
   const startEdit = (c: Client) => {
     setEditingClient(c);
     setNewFirstName(c.first_name || "");
@@ -183,17 +220,25 @@ export default function CRM() {
 
   const handleCreateInstitution = async () => {
     if (!instName || !user) return;
+    setIsSaving(true);
+    
+    // Clean insert to bypass schema cache issues with new columns
     const { error } = await supabase.from("institutions").insert({
       name: instName,
       type: instType,
-      city: instCity || null,
-      created_by: user.id,
+      city: instCity || null
     });
-    if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
-    toast({ title: "Institución creada" });
-    setShowNewInst(false);
-    setInstName(""); setInstCity("");
-    fetchData();
+    
+    if (error) { 
+      toast({ title: "Error", description: error.message, variant: "destructive" }); 
+    } else {
+      toast({ title: "✅ Institución creada" });
+      setShowNewInst(false);
+      setInstName(""); setInstCity("");
+      fetchData();
+    }
+    
+    setIsSaving(false);
   };
 
   const handleLinkInstitution = async () => {
@@ -285,7 +330,7 @@ export default function CRM() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-display font-bold text-foreground">CRM & Clientes</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground">Segmentación, Pricing y relación Médico-Institución</p>
+          <p className="text-xs sm:text-sm text-muted-foreground">Segmentación, Pricing y relación Cliente-Institución</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {isGerente && (
@@ -342,12 +387,18 @@ export default function CRM() {
           editingClient ? "border-secondary/30 bg-secondary/5" : "border-primary/30 bg-card gold-glow"
         )}>
           <h3 className="text-sm font-display font-semibold text-foreground">
-            {editingClient ? `Editar Cliente: ${editingClient.name}` : "Nuevo Cliente / Médico"}
+            {editingClient ? `Editar Cliente: ${editingClient.name}` : "Nuevo Cliente"}
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1 block">Código Cliente</label>
-              <input value={newCod} onChange={(e) => setNewCod(e.target.value)} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary" placeholder="C001..." />
+              <input 
+                value={newCod} 
+                onChange={(e) => setNewCod(e.target.value)} 
+                disabled={!isGerente}
+                className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary" 
+                placeholder="Autogenerado..." 
+              />
             </div>
             <div>
               <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1 block">Nombre</label>
@@ -396,19 +447,67 @@ export default function CRM() {
               </select>
             </div>
             <div>
-              <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1 block">Frecuencia de Visita</label>
-              <select value={newFreq} onChange={(e) => setNewFreq(e.target.value)} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary">
+              <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1 block">Frecuencia Visita</label>
+              <select 
+                value={newFreq} 
+                onChange={(e) => setNewFreq(e.target.value)} 
+                disabled={!isGerente}
+                className={cn(
+                  "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary",
+                  !isGerente && "bg-muted cursor-not-allowed"
+                )}
+              >
                 <option value="semanal">Semanal</option>
                 <option value="quincenal">Quincenal</option>
                 <option value="mensual">Mensual</option>
                 <option value="trimestral">Trimestral</option>
               </select>
+              {!isGerente && <p className="text-[9px] text-muted-foreground mt-1">Solo el gerente puede editar la frecuencia.</p>}
+            </div>
+            
+            <div className="lg:col-span-3 border-t border-border pt-4 mt-2">
+              <label className="text-[10px] font-black uppercase tracking-widest text-primary mb-3 block">Vinculación Institucional Obligatoria</label>
+              <div className="flex flex-col md:flex-row gap-4 bg-muted/20 p-4 rounded-xl border border-dashed border-border">
+                <div className="flex-1 relative">
+                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <input 
+                    type="text" 
+                    placeholder="Filtrar por nombre o ciudad..." 
+                    className="w-full rounded-lg border border-border bg-background pl-9 pr-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
+                    onChange={(e) => {
+                      const val = e.target.value.toLowerCase();
+                      const filtered = institutions.filter(i => i.name.toLowerCase().includes(val) || i.city?.toLowerCase().includes(val));
+                      // The select below already lists all, but this allows future expansion to a real dropdown
+                    }}
+                  />
+                </div>
+                <select 
+                  value={linkInstId} 
+                  onChange={(e) => setLinkInstId(e.target.value)}
+                  className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm font-bold text-foreground outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="">Seleccione Institución Principal...</option>
+                  {institutions.map(inst => (
+                    <option key={inst.id} value={inst.id}>{inst.name} ({inst.city || '—'})</option>
+                  ))}
+                </select>
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-2 italic">
+                * Todo cliente debe estar vinculado al menos a una institución para ser creado.
+              </p>
             </div>
           </div>
-          <div className="flex gap-2 justify-end">
+          <div className="flex gap-2 justify-end pt-4 border-t border-border">
             <button onClick={() => { setShowNewClient(false); setEditingClient(null); resetForm(); }} className="px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:bg-muted transition-colors">Cancelar</button>
-            <button onClick={editingClient ? handleUpdateClient : handleCreateClient} disabled={!newFirstName} className={cn("px-4 py-2 rounded-lg text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-50", editingClient ? "bg-secondary text-secondary-foreground" : "gradient-gold text-primary-foreground")}>
-              {editingClient ? "Actualizar Cliente" : "Crear Cliente"}
+            <button 
+              onClick={editingClient ? handleUpdateClient : handleCreateClient} 
+              disabled={!newFirstName || (!editingClient && !linkInstId)} 
+              className={cn(
+                "px-6 py-2 rounded-lg text-sm font-black transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:scale-100", 
+                editingClient ? "bg-secondary text-secondary-foreground" : "gradient-gold text-primary-foreground shadow-lg shadow-primary/20"
+              )}
+            >
+              {editingClient ? "Actualizar Cliente" : "Crear y Vincular"}
             </button>
           </div>
         </div>
@@ -502,7 +601,7 @@ export default function CRM() {
           <thead>
             <tr className="border-b border-border text-left">
               <th className="px-4 py-3 font-medium text-muted-foreground">Cód. Cliente</th>
-              <th className="px-4 py-3 font-medium text-muted-foreground">Cliente / Médico</th>
+              <th className="px-4 py-3 font-medium text-muted-foreground">Cliente</th>
               <th className="px-4 py-3 font-medium text-muted-foreground">Instituciones</th>
               <th className="px-4 py-3 font-medium text-muted-foreground">Segmento</th>
               <th className="px-4 py-3 font-medium text-muted-foreground text-center">Nivel</th>
@@ -560,6 +659,9 @@ export default function CRM() {
                   <td className="px-4 py-3 text-muted-foreground">{c.city || "—"}</td>
                   <td className="px-4 py-3 text-center">
                     <div className="flex items-center justify-center gap-2">
+                       <button onClick={() => navigate(`/crm/intelligence/${c.id}`)} className="inline-flex items-center gap-1 rounded-lg bg-primary/10 px-2 py-1 text-xs text-primary hover:bg-primary/20 transition-colors">
+                         <Activity className="h-3 w-3" /> Inteligencia
+                       </button>
                        <button onClick={() => startEdit(c)} className="inline-flex items-center gap-1 rounded-lg bg-secondary/10 px-2 py-1 text-xs text-secondary hover:bg-secondary/20 transition-colors">
                          Editar
                        </button>

@@ -49,13 +49,13 @@ export default function ConoftaSettings() {
   const [products, setProducts] = useState<any[]>([]);
 
   async function fetchProducts() {
-    const { data } = await supabase.from('conofta_products').select('*').order('name');
+    const { data } = await supabase.from('conofta_products' as any).select('*').eq('active', true).order('name');
     if (data) setProducts(data);
   }
 
   async function fetchInstitutions() {
     setLoading(true);
-    const { data, error } = await supabase.from('institutions').select('*').order('name');
+    const { data, error } = await supabase.from('institutions').select('*').eq('active', true).order('name');
     if (error) toast.error("Error al cargar sedes");
     else setInstitutions(data || []);
     setLoading(false);
@@ -65,6 +65,7 @@ export default function ConoftaSettings() {
     const { data, error } = await supabase
       .from('conofta_surgeons' as any)
       .select('*, institutions(name)')
+      .eq('active', true)
       .order('name');
     if (!error) setSurgeons(data || []);
   }
@@ -131,8 +132,9 @@ export default function ConoftaSettings() {
   }
 
   async function handleDeleteSede(id: string) {
-    const { error } = await supabase.from('institutions').delete().eq('id', id);
-    if (error) toast.error("No se puede eliminar: tiene registros asociados");
+    if (!window.confirm("¿Está seguro de eliminar esta sede?")) return;
+    const { error } = await supabase.from('institutions').update({ active: false }).eq('id', id);
+    if (error) toast.error("Error al eliminar");
     else {
       toast.success("Sede eliminada");
       fetchInstitutions();
@@ -142,8 +144,9 @@ export default function ConoftaSettings() {
   const [newProduct, setNewProduct] = useState({ name: "", sku: "", category: "lente", unit: "un" });
 
   async function handleDeleteSurgeon(id: string) {
-    const { error } = await supabase.from('conofta_surgeons' as any).delete().eq('id', id);
-    if (error) toast.error("No se puede eliminar: tiene cirugías asociadas");
+    if (!window.confirm("¿Está seguro de eliminar este cirujano?")) return;
+    const { error } = await supabase.from('conofta_surgeons' as any).update({ active: false }).eq('id', id);
+    if (error) toast.error("Error al eliminar");
     else {
       toast.success("Cirujano eliminado");
       fetchSurgeons();
@@ -161,9 +164,19 @@ export default function ConoftaSettings() {
     else {
       toast.success("Producto agregado");
       setNewProduct({ name: "", sku: "", category: "lente", unit: "un" });
-      // Here we would ideally refresh products, but we'll add product fetching to useEffect
+      fetchProducts();
     }
     setIsSaving(false);
+  }
+
+  async function handleDeleteProduct(id: string) {
+    if (!window.confirm("¿Está seguro de eliminar este producto?")) return;
+    const { error } = await supabase.from('conofta_products' as any).update({ active: false }).eq('id', id);
+    if (error) toast.error("Error al eliminar");
+    else {
+      toast.success("Producto eliminado");
+      fetchProducts();
+    }
   }
 
   return (
@@ -259,7 +272,7 @@ export default function ConoftaSettings() {
                       <tr key={sede.id} className="hover:bg-muted/5 transition-colors group">
                         <td className="p-4">
                           <span className="font-mono text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/20">
-                            {sede.unique_code || "N/A"}
+                            {sede.cod_institucion || "N/A"}
                           </span>
                         </td>
                         <td className="p-4">
@@ -353,7 +366,7 @@ export default function ConoftaSettings() {
                         <tr key={s.id} className="hover:bg-muted/5 transition-colors group">
                           <td className="p-4">
                             <span className="font-mono text-[10px] bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded border border-blue-500/20">
-                              {s.unique_code || "N/A"}
+                              {s.cod_cirujano || "N/A"}
                             </span>
                           </td>
                           <td className="p-4">
@@ -443,6 +456,7 @@ export default function ConoftaSettings() {
                       <th className="p-5 text-[10px] font-black text-muted-foreground uppercase tracking-widest">Producto</th>
                       <th className="p-5 text-[10px] font-black text-muted-foreground uppercase text-center tracking-widest">Categoría</th>
                       <th className="p-5 text-[10px] font-black text-muted-foreground uppercase text-center tracking-widest">SKU</th>
+                      <th className="p-5 text-[10px] font-black text-muted-foreground uppercase text-right tracking-widest">Acción</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/30 text-sm">
@@ -450,7 +464,7 @@ export default function ConoftaSettings() {
                       <tr key={p.id} className="hover:bg-muted/5 transition-colors group">
                         <td className="p-4">
                           <span className="font-mono text-[10px] bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded border border-indigo-500/20">
-                            {p.unique_code || "N/A"}
+                            {p.cod_producto || "N/A"}
                           </span>
                         </td>
                         <td className="p-4 font-bold text-foreground">{p.name}</td>
@@ -460,6 +474,11 @@ export default function ConoftaSettings() {
                           </Badge>
                         </td>
                         <td className="p-4 text-center text-muted-foreground font-mono text-[10px]">{p.sku || "—"}</td>
+                        <td className="p-4 text-right">
+                          <Button variant="ghost" size="icon" className="text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => handleDeleteProduct(p.id)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>

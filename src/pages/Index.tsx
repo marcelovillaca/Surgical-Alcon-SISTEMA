@@ -5,6 +5,7 @@ import { SalesBarChart, ProductMixChart, TopProductMarginList } from "@/componen
 import { RankingCard } from "@/components/dashboard/TopRankings";
 import MetaAccelerator from "@/components/dashboard/MetaAccelerator";
 import DashboardFilters from "@/components/dashboard/DashboardFilters";
+import VolumeAlerts from "@/components/dashboard/VolumeAlerts";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useDashboardData, DashboardFilters as Filters } from "@/hooks/useDashboardData";
 import {
@@ -58,6 +59,8 @@ const Dashboard = () => {
         </div>
       ) : (
         <>
+          {isGerente && <VolumeAlerts />}
+          
           {/* KPI Row */}
           {isGerente ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
