@@ -1,6 +1,8 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { Users, Search, Plus, Building, Link2, X, Upload, FileSpreadsheet, Loader2, ShoppingCart, Activity, Trash2 } from "lucide-react";
+import { 
+  Users, Search, Plus, Building, Link2, X, Upload, FileSpreadsheet, 
+  Loader2, ShoppingCart, Activity, Trash2, LayoutGrid, List, 
+  ChevronRight, MapPin, Stethoscope, Briefcase, Globe
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -23,23 +25,20 @@ type Client = {
   email: string | null;
   phone: string | null;
   address: string | null;
-  institutions: { id: string; name: string; city: string | null }[];
+  subspecialties: string[];
+  client_type: string;
+  primary_institution_id: string | null;
+  monthly_surgery_volume: number;
+  institutions: { id: string; name: string; city: string | null; is_primary?: boolean; monthly_surgery_volume?: number }[];
 };
 
 type Institution = { id: string; name: string; type: string | null; city: string | null };
 
-const segmentos = [
-  { label: "Check-in", color: "bg-chart-3" },
-  { label: "Grow", color: "bg-primary" },
-  { label: "Partner", color: "bg-secondary" },
-  { label: "Protect", color: "bg-chart-5" },
-];
-
-const nivelColors: Record<string, string> = {
-  A: "gradient-gold",
-  B: "gradient-emerald",
-  C: "bg-chart-3",
-  D: "bg-muted",
+const segmentStyles: Record<string, { label: string, color: string, badge: string }> = {
+  check_in: { label: "Check-in", color: "bg-slate-500", badge: "border-slate-400/30 bg-slate-400/10 text-slate-500" },
+  grow: { label: "Grow", color: "bg-emerald-500", badge: "border-emerald-400/30 bg-emerald-400/10 text-emerald-500" },
+  partner: { label: "Partner", color: "bg-cyan-500", badge: "border-cyan-400/30 bg-cyan-400/10 text-cyan-500" },
+  protect: { label: "Protect", color: "bg-amber-500", badge: "border-amber-400/30 bg-amber-400/10 text-amber-500" },
 };
 
 const freqLabels: Record<string, string> = {
@@ -60,9 +59,8 @@ export default function CRM() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [showNewClient, setShowNewClient] = useState(false);
-  const [showNewInst, setShowNewInst] = useState(false);
-  const [linkClientId, setLinkClientId] = useState<string | null>(null);
-  const [linkInstId, setLinkInstId] = useState("");
+  const [activeTab, setActiveTab] = useState<"medicos" | "instituciones">("medicos");
+  const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
   const [isSaving, setIsSaving] = useState(false);
 
   // New client form
@@ -94,17 +92,35 @@ export default function CRM() {
   const fetchData = async () => {
     const [{ data: clientsData }, { data: instsData }] = await Promise.all([
       (supabase.from("clients")
-        .select("id, name, first_name, last_name, cod_cliente, contact_name, city, segment, pricing_level, visit_frequency, email, phone, address") as any),
+        .select("id, name, first_name, last_name, cod_cliente, contact_name, city, segment, pricing_level, visit_frequency, email, phone, address, subspecialties, client_type, primary_institution_id") as any),
       supabase.from("institutions").select("id, name, type, city"),
     ]);
 
     if (clientsData) {
-      // Fetch institution links
-      const { data: links } = await supabase.from("client_institutions").select("client_id, institution_id");
+      // Fetch institution links including volume and primary status
+      const { data: links } = await supabase.from("client_institutions").select("client_id, institution_id, is_primary, monthly_surgery_volume");
+      
       const enriched = clientsData.map((c) => {
-        const instIds = links?.filter((l) => l.client_id === c.id).map((l) => l.institution_id) || [];
-        const insts = instsData?.filter((i) => instIds.includes(i.id)) || [];
-        return { ...c, institutions: insts.map(i => ({ id: i.id, name: i.name, city: i.city })) } as Client;
+        const cLinks = links?.filter((l) => l.client_id === c.id) || [];
+        const insts = instsData?.filter((i) => cLinks.some(l => l.institution_id === i.id)) || [];
+        const primaryLink = cLinks.find(l => l.is_primary) || cLinks[0]; // fallback to first if none primary
+        
+        return { 
+          ...c, 
+          subspecialties: c.subspecialties || [],
+          client_type: c.client_type || 'doctor',
+          monthly_surgery_volume: primaryLink?.monthly_surgery_volume || 0,
+          institutions: insts.map(i => {
+            const link = cLinks.find(l => l.institution_id === i.id);
+            return { 
+              id: i.id, 
+              name: i.name, 
+              city: i.city, 
+              is_primary: link?.is_primary, 
+              monthly_surgery_volume: link?.monthly_surgery_volume 
+            };
+          }) 
+        } as Client;
       });
       setClients(enriched);
     }
@@ -552,55 +568,100 @@ export default function CRM() {
         ))}
       </div>
 
-      {/* Search and Filters */}
+      {/* Tab Switcher & Segment Filters */}
+      <div className="space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-4">
+          <div className="flex p-1 bg-muted/40 rounded-xl w-fit">
+            <button
+              onClick={() => setActiveTab("medicos")}
+              className={cn(
+                "px-6 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2",
+                activeTab === "medicos" ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Stethoscope className="h-4 w-4" /> MÉDICOS
+              <span className={cn("px-1.5 py-0.5 rounded-full text-[10px]", activeTab === "medicos" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>
+                {clients.length}
+              </span>
+            </button>
+            <button
+              onClick={() => setActiveTab("instituciones")}
+              className={cn(
+                "px-6 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2",
+                activeTab === "instituciones" ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Building className="h-4 w-4" /> INSTITUCIONES
+              <span className={cn("px-1.5 py-0.5 rounded-full text-[10px]", activeTab === "instituciones" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>
+                {institutions.length}
+              </span>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div className="flex p-1 bg-muted/40 rounded-xl">
+              <button
+                onClick={() => setViewMode("grid")}
+                className={cn("p-2 rounded-lg transition-all", viewMode === "grid" ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground")}
+              >
+                <LayoutGrid className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => setViewMode("table")}
+                className={cn("p-2 rounded-lg transition-all", viewMode === "table" ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground")}
+              >
+                <List className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {activeTab === "medicos" && (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0 scrollbar-none no-scrollbar">
+              <button
+                onClick={() => setActiveSegment(null)}
+                className={cn(
+                  "px-4 py-2 text-xs font-bold rounded-xl border transition-all whitespace-nowrap",
+                  !activeSegment ? "bg-primary text-white border-primary shadow-lg shadow-primary/20" : "bg-card border-border text-muted-foreground hover:border-primary/50"
+                )}
+              >
+                Todos
+              </button>
+              {Object.entries(segmentStyles).map(([key, style]) => {
+                const active = activeSegment === key;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setActiveSegment(active ? null : key)}
+                    className={cn(
+                      "px-4 py-2 text-xs font-bold rounded-xl border transition-all whitespace-nowrap flex items-center gap-2",
+                      active ? "bg-primary text-white border-primary shadow-lg shadow-primary/20" : "bg-card border-border text-muted-foreground hover:border-primary/50"
+                    )}
+                  >
+                    <span className={cn("w-2 h-2 rounded-full", style.color)} />
+                    {style.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="relative flex-1 sm:max-w-md">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Código, nombre, ciudad..."
+            placeholder={activeTab === "medicos" ? "Buscar por nombre, código, ciudad..." : "Buscar instituciones..."}
             className="w-full rounded-xl border border-border bg-card h-12 pl-10 pr-4 text-sm text-foreground shadow-sm placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/20 outline-none transition-all"
           />
         </div>
-
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0 scrollbar-none">
-          <div className="flex rounded-lg border border-border p-1 bg-card">
-            {["A", "B", "C", "D"].map(p => (
-              <button
-                key={p}
-                onClick={() => setActivePricing(activePricing === p ? null : p)}
-                className={cn(
-                  "px-3 py-1.5 text-xs font-bold rounded-md transition-all",
-                  activePricing === p ? nivelColors[p] + " text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {p}
-              </button>
-            ))}
-          </div>
-          <div className="flex gap-1">
-            {segmentos.map(s => {
-              const segKey = s.label.toLowerCase().replace("-", "_");
-              const active = activeSegment === segKey;
-              return (
-                <button
-                  key={s.label}
-                  onClick={() => setActiveSegment(active ? null : segKey)}
-                  className={cn(
-                    "px-3 py-1.5 text-xs font-medium rounded-lg border transition-all",
-                    active ? "bg-primary/20 border-primary text-primary" : "bg-card border-border text-muted-foreground hover:border-primary/50"
-                  )}
-                >
-                  {s.label}
-                </button>
-              );
-            })}
-          </div>
-          {(activeSegment || activePricing || search) && (
-            <button onClick={() => { setActiveSegment(null); setActivePricing(null); setSearch(""); }} className="text-xs text-primary font-bold hover:underline px-2">Limpiar</button>
-          )}
-        </div>
+        {(activeSegment || activePricing || search) && (
+          <button onClick={() => { setActiveSegment(null); setActivePricing(null); setSearch(""); }} className="text-xs text-primary font-bold hover:underline px-2">Limpiar filtros</button>
+        )}
       </div>
 
       {/* Link Institution Dialog */}
@@ -620,164 +681,209 @@ export default function CRM() {
         </div>
       )}
 
-      {/* DESKTOP: Table */}
-      <div className="hidden lg:block overflow-x-auto rounded-xl border border-border bg-card">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border text-left">
-              <th className="px-4 py-3 font-medium text-muted-foreground">Cód. Cliente</th>
-              <th className="px-4 py-3 font-medium text-muted-foreground">Cliente</th>
-              <th className="px-4 py-3 font-medium text-muted-foreground">Instituciones</th>
-              <th className="px-4 py-3 font-medium text-muted-foreground">Segmento</th>
-              <th className="px-4 py-3 font-medium text-muted-foreground text-center">Nivel</th>
-              <th className="px-4 py-3 font-medium text-muted-foreground">Freq. Visita</th>
-              <th className="px-4 py-3 font-medium text-muted-foreground">Contacto</th>
-              <th className="px-4 py-3 font-medium text-muted-foreground">Ciudad</th>
-              <th className="px-4 py-3 font-medium text-muted-foreground text-center">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">Cargando...</td></tr>
-            ) : filtered.length === 0 ? (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">Sin resultados</td></tr>
-            ) : (
-              filtered.map((c) => (
-                <tr key={c.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors group">
-                  <td className="px-4 py-3 font-mono text-[11px]">
-                    <div className="flex items-center gap-2">
-                      <span className={cn(
-                        "px-1.5 py-0.5 rounded border font-bold",
-                        c.cod_cliente ? "text-primary border-primary/30 bg-primary/5" : "text-muted-foreground border-border bg-muted/20"
-                      )}>
-                        {c.cod_cliente || "S/C"}
-                      </span>
-                      {c.cod_cliente && <ShoppingCart className="h-3 w-3 text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity" />}
+      {/* Main Content Area */}
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-24 space-y-4">
+          <Loader2 className="h-10 w-10 text-primary animate-spin" />
+          <p className="text-sm text-muted-foreground font-medium animate-pulse">Cargando Inteligencia CRM...</p>
+        </div>
+      ) : activeTab === "medicos" ? (
+        <>
+          {viewMode === "grid" ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filtered.map((c) => (
+                <div 
+                  key={c.id} 
+                  className="group relative rounded-2xl border border-border bg-card hover:bg-primary/5 transition-all duration-300 hover:shadow-2xl hover:shadow-primary/5 hover:-translate-y-1 overflow-hidden"
+                >
+                  {/* Card Header: Segment & Action */}
+                  <div className="flex items-center justify-between p-5 pb-3">
+                    <div className={cn(
+                      "px-3 py-1.5 rounded-xl text-[10px] font-black shadow-inner border uppercase tracking-widest",
+                      segmentStyles[c.segment]?.badge || "border-border bg-muted/20 text-muted-foreground"
+                    )}>
+                      {segmentStyles[c.segment]?.label || c.segment}
                     </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-col">
-                      <span className="font-semibold text-foreground">{c.name}</span>
-                      {c.first_name && <span className="text-[10px] text-muted-foreground opacity-70">{c.first_name} {c.last_name}</span>}
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => startEdit(c)}
+                        className="h-9 w-9 rounded-xl bg-muted/50 flex items-center justify-center text-muted-foreground hover:bg-secondary/10 hover:text-secondary transition-all"
+                        title="Editar"
+                      >
+                        <UserCog className="h-4 w-4" />
+                      </button>
+                      <button 
+                        onClick={() => navigate(`/crm/intelligence/${c.id}`)}
+                        className="h-9 w-9 rounded-xl bg-muted/50 flex items-center justify-center text-muted-foreground hover:bg-primary/10 hover:text-primary transition-all"
+                        title="Inteligencia"
+                      >
+                        <Activity className="h-4 w-4" />
+                      </button>
                     </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap gap-1">
-                      {c.institutions.map((inst) => (
-                        <span key={inst.id} className="inline-flex items-center gap-1 rounded-full bg-secondary/10 px-2 py-0.5 text-[10px] font-medium text-secondary">
-                          <Building className="h-2.5 w-2.5" />
-                          {inst.name}
-                          <button onClick={() => handleUnlink(c.id, inst.id)} className="ml-0.5 hover:text-destructive"><X className="h-2.5 w-2.5" /></button>
-                        </span>
-                      ))}
-                      {c.institutions.length === 0 && <span className="text-xs text-muted-foreground">—</span>}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground capitalize">{c.segment.replace("_", " ")}</td>
-                  <td className="px-4 py-3 text-center">
-                    <span className={cn("inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold", nivelColors[c.pricing_level], c.pricing_level === "D" ? "text-muted-foreground" : "text-primary-foreground")}>
-                      {c.pricing_level}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">{c.visit_frequency ? freqLabels[c.visit_frequency] || c.visit_frequency : "—"}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{c.contact_name || "—"}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{c.city || "—"}</td>
-                  <td className="px-4 py-3 text-center">
-                    <div className="flex items-center justify-center gap-2">
-                       <button onClick={() => navigate(`/crm/intelligence/${c.id}`)} className="inline-flex items-center gap-1 rounded-lg bg-primary/10 px-2 py-1 text-xs text-primary hover:bg-primary/20 transition-colors">
-                         <Activity className="h-3 w-3" /> Inteligencia
-                       </button>
-                       <button onClick={() => startEdit(c)} className="inline-flex items-center gap-1 rounded-lg bg-secondary/10 px-2 py-1 text-xs text-secondary hover:bg-secondary/20 transition-colors">
-                         Editar
-                       </button>
-                       <button onClick={() => setLinkClientId(c.id)} className="inline-flex items-center gap-1 rounded-lg bg-muted px-2 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
-                         <Link2 className="h-3 w-3" /> Vincular
-                       </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* MOBILE: Client Cards */}
-      <div className="lg:hidden space-y-3">
-        {loading && (
-          <div className="flex items-center justify-center py-12">
-            <div className="h-6 w-6 rounded-lg bg-primary/20 animate-pulse" />
-          </div>
-        )}
-        {!loading && filtered.length === 0 && (
-          <div className="text-center py-12 text-muted-foreground text-sm">Sin resultados</div>
-        )}
-        {!loading && filtered.map((c) => (
-          <div key={c.id} className="rounded-2xl border border-border/50 bg-card/80 overflow-hidden ring-1 ring-white/5">
-            <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-white/5">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className={cn(
-                  "h-10 w-10 rounded-full flex items-center justify-center font-black text-sm border-2 shrink-0",
-                  c.pricing_level === "A" ? "border-amber-400 bg-amber-400/10 text-amber-400" :
-                  c.pricing_level === "B" ? "border-emerald-400 bg-emerald-400/10 text-emerald-400" :
-                  c.pricing_level === "C" ? "border-blue-400 bg-blue-400/10 text-blue-400" :
-                  "border-border bg-muted/20 text-muted-foreground"
-                )}>{c.pricing_level}</div>
-                <div className="min-w-0">
-                  <p className="font-bold text-foreground text-sm truncate">{c.name}</p>
-                  <p className="text-[11px] text-muted-foreground">{c.city || "—"} · <span className="capitalize">{c.segment.replace("_", " ")}</span></p>
-                </div>
-              </div>
-              {c.cod_cliente && (
-                <span className="text-[10px] font-mono font-bold text-primary/70 border border-primary/20 bg-primary/5 px-2 py-1 rounded-lg shrink-0 ml-2">
-                  {c.cod_cliente}
-                </span>
-              )}
-            </div>
-            <div className="px-4 py-3 space-y-2 text-[11px]">
-              {c.visit_frequency && (
-                <div className="flex items-center gap-1.5">
-                  <span className="text-muted-foreground">Frec.:</span>
-                  <span className="font-semibold">{freqLabels[c.visit_frequency] || c.visit_frequency}</span>
-                </div>
-              )}
-              {c.contact_name && (
-                <div className="flex items-center gap-1.5">
-                  <span className="text-muted-foreground">Contacto:</span>
-                  <span className="truncate">{c.contact_name}</span>
-                </div>
-              )}
-              {c.institutions.length > 0 && (
-                <div className="flex items-start gap-1.5">
-                  <Building className="h-3 w-3 text-muted-foreground mt-0.5 shrink-0" />
-                  <div className="flex flex-wrap gap-1">
-                    {c.institutions.map((inst) => (
-                      <span key={inst.id} className="inline-flex items-center gap-1 rounded-full bg-secondary/10 px-2 py-0.5 text-[10px] font-medium text-secondary">
-                        {inst.name}
-                        <button onClick={() => handleUnlink(c.id, inst.id)} className="ml-0.5 hover:text-destructive"><X className="h-2.5 w-2.5" /></button>
-                      </span>
-                    ))}
                   </div>
+
+                  {/* Doctor Info */}
+                  <div className="px-5 pb-5 space-y-4">
+                    <div className="space-y-1">
+                      <h3 className="font-display font-bold text-foreground text-lg group-hover:text-primary transition-colors truncate">
+                        {c.name}
+                      </h3>
+                      <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-medium uppercase tracking-tighter">
+                        <MapPin className="h-3 w-3" /> {c.city || "Ciudad no definida"}
+                        <span className="w-1 h-1 rounded-full bg-muted-foreground/30" />
+                        <span className="opacity-80">NIVEL {c.pricing_level}</span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2.5">
+                      <div className="flex items-start gap-2.5 text-xs text-muted-foreground">
+                        <Building className="h-4 w-4 mt-0.5 shrink-0 text-primary/60" />
+                        <div className="min-w-0">
+                          <p className="font-bold text-foreground truncate">
+                            {c.institutions.find(i => i.is_primary)?.name || c.institutions[0]?.name || "Sin institución"}
+                          </p>
+                          <p className="text-[10px] flex items-center gap-1">
+                            <MapPin className="h-3 w-3" /> {c.city || "Ciudad no definida"}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-2.5 text-xs text-muted-foreground">
+                        <Stethoscope className="h-4 w-4 mt-0.5 shrink-0 text-secondary/60" />
+                        <div className="flex flex-wrap gap-1">
+                          {c.subspecialties.length > 0 ? (
+                            c.subspecialties.map(s => (
+                              <span key={s} className="bg-secondary/10 text-secondary px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider">
+                                {s.replace("_", " ")}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="italic text-[10px] opacity-60">Especialidad no mapeada</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card Footer: Volume & Arrow */}
+                  <div className="bg-muted/30 px-5 py-4 flex items-center justify-between border-t border-border/40">
+                    <div>
+                      <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-0.5">Volume Mensal</p>
+                      <p className="text-sm font-display font-black text-foreground">
+                        {c.monthly_surgery_volume} <span className="text-[10px] font-bold text-muted-foreground">cir.</span>
+                      </p>
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:translate-x-1 group-hover:text-primary transition-all" />
+                  </div>
+                  
+                  {/* Subtle hover gradient */}
+                  <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-transparent via-primary/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
-              )}
+              ))}
             </div>
-            <div className="flex border-t border-white/5">
-              <button
-                onClick={() => startEdit(c)}
-                className="flex-1 h-11 flex items-center justify-center gap-2 text-xs font-bold text-secondary hover:bg-secondary/10 transition-colors border-r border-white/5"
-              >
-                Editar
-              </button>
-               <button
-                onClick={() => setLinkClientId(c.id)}
-                className="flex-1 h-11 flex items-center justify-center gap-2 text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors"
-              >
-                <Link2 className="h-3.5 w-3.5" /> Vincular Inst.
-              </button>
+          ) : (
+            /* DESKTOP: Table */
+            <div className="overflow-x-auto rounded-xl border border-border bg-card">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left">
+                    <th className="px-4 py-3 font-medium text-muted-foreground">Cód. Cliente</th>
+                    <th className="px-4 py-3 font-medium text-muted-foreground">Cliente</th>
+                    <th className="px-4 py-3 font-medium text-muted-foreground">Instituciones</th>
+                    <th className="px-4 py-3 font-medium text-muted-foreground">Segmento</th>
+                    <th className="px-4 py-3 font-medium text-muted-foreground text-center">Nivel</th>
+                    <th className="px-4 py-3 font-medium text-muted-foreground">Volume</th>
+                    <th className="px-4 py-3 font-medium text-muted-foreground text-center">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.length === 0 ? (
+                    <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">Sin resultados</td></tr>
+                  ) : (
+                    filtered.map((c) => (
+                      <tr key={c.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors group">
+                        <td className="px-4 py-3 font-mono text-[11px]">
+                          <span className={cn(
+                            "px-1.5 py-0.5 rounded border font-bold",
+                            c.cod_cliente ? "text-primary border-primary/30 bg-primary/5" : "text-muted-foreground border-border bg-muted/20"
+                          )}>
+                            {c.cod_cliente || "S/C"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-col">
+                            <span className="font-semibold text-foreground">{c.name}</span>
+                            <span className="text-[10px] text-muted-foreground opacity-70 truncate max-w-[150px]">
+                              {c.subspecialties.join(", ").replace(/_/g, " ")}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-wrap gap-1">
+                            {c.institutions.map((inst) => (
+                              <span key={inst.id} className={cn(
+                                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium",
+                                inst.is_primary ? "bg-primary/10 text-primary border border-primary/20" : "bg-secondary/10 text-secondary"
+                              )}>
+                                {inst.name}
+                                <button onClick={() => handleUnlink(c.id, inst.id)} className="ml-0.5 hover:text-destructive"><X className="h-2.5 w-2.5" /></button>
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground capitalize">{c.segment.replace("_", " ")}</td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={cn("inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold", nivelColors[c.pricing_level], c.pricing_level === "D" ? "text-muted-foreground" : "text-primary-foreground")}>
+                            {c.pricing_level}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 font-bold">{c.monthly_surgery_volume}</td>
+                        <td className="px-4 py-3 text-center">
+                          <div className="flex items-center justify-center gap-2">
+                             <button onClick={() => navigate(`/crm/intelligence/${c.id}`)} className="p-2 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors">
+                               <Activity className="h-4 w-4" />
+                             </button>
+                             <button onClick={() => startEdit(c)} className="p-2 rounded-lg bg-secondary/10 text-secondary hover:bg-secondary/20 transition-colors">
+                               Editar
+                             </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
-          </div>
-        ))}
-      </div>
+          )}
+        </>
+      ) : (
+        /* INSTITUTIONS VIEW */
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {institutions.filter(i => i.name.toLowerCase().includes(search.toLowerCase()) || i.city?.toLowerCase().includes(search.toLowerCase())).map((inst) => (
+            <div key={inst.id} className="rounded-2xl border border-border/60 bg-card p-5 space-y-4 hover:shadow-xl transition-all">
+              <div className="flex items-center justify-between">
+                <div className="h-12 w-12 rounded-2xl bg-secondary/10 flex items-center justify-center">
+                  <Building className="h-6 w-6 text-secondary" />
+                </div>
+                <span className="bg-muted px-2 py-1 rounded text-[10px] font-bold uppercase text-muted-foreground">{inst.type}</span>
+              </div>
+              <div>
+                <h3 className="font-display font-bold text-lg text-foreground">{inst.name}</h3>
+                <p className="text-sm text-muted-foreground flex items-center gap-1">
+                  <MapPin className="h-3 w-3" /> {inst.city || "Ciudad no definida"}
+                </p>
+              </div>
+              <div className="pt-2 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
+                <div className="flex items-center gap-1">
+                   <Users className="h-3 w-3" /> 
+                   <span>{clients.filter(c => c.institutions.some(li => li.id === inst.id)).length} Médicos</span>
+                </div>
+                <button className="text-primary font-bold hover:underline">Ver detalle</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Bulk Import Modal */}
       {showBulkImport && (

@@ -100,6 +100,23 @@ export default function Visitas() {
   const [viaticoOtrosDesc, setViaticoOtrosDesc] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // ─── Phase 4: Checkout Result State ───────────────────────────────────────
+  const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+  const [checkoutVisitId, setCheckoutVisitId] = useState<string | null>(null);
+  const [interest, setInterest] = useState<"Bajo" | "Medio" | "Alto">("Medio");
+  const [nextAction, setNextAction] = useState("");
+  const [resultNotes, setResultNotes] = useState("");
+
+  const nextActionOptions = [
+    "Programar Demo de Equipo",
+    "Enviar Cotización",
+    "Entregar Muestras",
+    "Seguimiento Telefónico",
+    "Cierre de Venta",
+    "Resolución de Incidencia",
+    "Capacitación de Staff"
+  ];
+
   // Week helpers
   const getWeekDays = useCallback((dateStr: string) => {
     const d = new Date(dateStr + "T12:00:00");
@@ -114,6 +131,134 @@ export default function Visitas() {
   }, []);
 
   const weekDays = useMemo(() => getWeekDays(selectedDate), [selectedDate, getWeekDays]);
+
+  const activeVisit = useMemo(() => 
+    allVisits.find(v => v.check_in_at && !v.check_out_at),
+    [allVisits]
+  );
+
+  const [activeTimer, setActiveTimer] = useState("00:00:00");
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (activeVisit?.check_in_at) {
+      interval = setInterval(() => {
+        const start = new Date(activeVisit.check_in_at!).getTime();
+        const now = new Date().getTime();
+        const diff = now - start;
+        const h = Math.floor(diff / 3600000).toString().padStart(2, "0");
+        const m = Math.floor((diff % 3600000) / 60000).toString().padStart(2, "0");
+        const s = Math.floor((diff % 60000) / 1000).toString().padStart(2, "0");
+        setActiveTimer(`${h}:${m}:${s}`);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [activeVisit]);
+
+  const filteredClients = useMemo(() => {
+    if (!clientSearch) return clients.slice(0, 10);
+    return clients.filter(c => 
+      c.name.toLowerCase().includes(clientSearch.toLowerCase()) || 
+      (c.city && c.city.toLowerCase().includes(clientSearch.toLowerCase()))
+    ).slice(0, 20);
+  }, [clients, clientSearch]);
+
+  const navigateDate = (dir: number) => {
+    const d = new Date(selectedDate + "T12:00:00");
+    if (viewMode === "day") d.setDate(d.getDate() + dir);
+    else if (viewMode === "week") d.setDate(d.getDate() + (dir * 7));
+    else d.setMonth(d.getMonth() + dir);
+    setSelectedDate(d.toISOString().split("T")[0]);
+  };
+
+  const addEntry = () => setFormEntries([...formEntries, { clientId: "", date: selectedDate, time: "09:00", type: "" }]);
+  const removeEntry = (idx: number) => setFormEntries(formEntries.filter((_, i) => i !== idx));
+  const updateEntry = (idx: number, field: string, value: string) => {
+    const newEntries = [...formEntries];
+    (newEntries[idx] as any)[field] = value;
+    setFormEntries(newEntries);
+  };
+  const resetForm = () => {
+    setShowForm(false);
+    setFormEntries([{ clientId: "", date: new Date().toISOString().split("T")[0], time: "09:00", type: "" }]);
+    setFormObs("");
+    setNeedsViatico(false);
+    setViaticoTransporte(0);
+    setViaticoHospedaje(0);
+    setViaticoAlimentacion(0);
+    setViaticoOtros(0);
+    setViaticoOtrosDesc("");
+  };
+
+  const handleQuickCheckIn = async (clientId: string) => {
+    if (!user) return;
+    setSubmitting(true);
+    try {
+      if (!navigator.geolocation) throw new Error("GPS no disponible");
+      
+      const pos = await new Promise<GeolocationPosition>((res, rej) => 
+        navigator.geolocation.getCurrentPosition(res, rej)
+      );
+
+      const { data: visit, error } = await supabase.from("visits").insert({
+        client_id: clientId,
+        visit_date: new Date().toISOString().split("T")[0],
+        scheduled_time: new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }),
+        visit_type: "gestion_relacion",
+        observations: "Visita rápida (SFA Check-in)",
+        created_by: user.id,
+        approved: true,
+        check_in_at: new Date().toISOString(),
+        check_in_lat: pos.coords.latitude,
+        check_in_lon: pos.coords.longitude
+      }).select("id").single();
+
+      if (error) throw error;
+      
+      toast({ title: "📍 Check-in Rápido exitoso" });
+      setShowQuickVisit(false);
+      fetchVisitsForWeek();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleJustify = async () => {
+    if (!justifyingVisit || !user) return;
+    setSubmitting(true);
+    try {
+      const justification = `${justificationOption}${justificationObs ? ": " + justificationObs : ""}`;
+      
+      const { error } = await supabase.from("visits").update({
+        justification,
+        rescheduled_date: rescheduleDate,
+        rescheduled_time: rescheduleTime
+      }).eq("id", justifyingVisit.id);
+
+      if (error) throw error;
+
+      // Create the new visit automatically
+      await supabase.from("visits").insert({
+        client_id: justifyingVisit.client_id,
+        visit_date: rescheduleDate,
+        scheduled_time: rescheduleTime,
+        visit_type: justifyingVisit.visit_type as any,
+        observations: `Reprogramada por: ${justification}`,
+        created_by: user.id,
+        approved: true
+      });
+
+      toast({ title: "Justificación grabada", description: "Se ha creado una nueva visita reprogramada." });
+      setJustifyingVisit(null);
+      fetchVisitsForWeek();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   useEffect(() => {
     fetchClients();
@@ -275,9 +420,7 @@ export default function Visitas() {
     }, () => toast({ title: "Error", description: "No se pudo obtener la ubicación", variant: "destructive" }));
   };
 
-  const handleCheckOut = async (visitId: string) => {
-    if (!navigator.geolocation) return;
-    
+  const handleCheckOut = (visitId: string) => {
     // Validate checklist completion for technical/strategic visits
     const visit = allVisits.find(v => v.id === visitId);
     if (visit && (visit.visit_type === 'soporte_tecnico_clinico' || visit.visit_type === 'gestion_relacion')) {
@@ -287,18 +430,46 @@ export default function Visitas() {
             return;
         }
     }
+    
+    setCheckoutVisitId(visitId);
+    setShowCheckoutModal(true);
+  };
 
+  const confirmCheckOut = async () => {
+    if (!checkoutVisitId || !navigator.geolocation) return;
+    setSubmitting(true);
+    
     navigator.geolocation.getCurrentPosition(async (pos) => {
-      await supabase.from("visits").update({ 
-        check_out_at: new Date().toISOString(), 
-        check_out_lat: pos.coords.latitude, 
-        check_out_lon: pos.coords.longitude,
-        observations: (visit?.observations || "") + "\n\nCHECKLIST: " + checklistObs
-      }).eq("id", visitId);
-      toast({ title: "📍 Visita Finalizada", description: "Ejecución registrada exitosamente." });
-      setActiveChecklist({});
-      setChecklistObs("");
-      if (viewMode === "day") fetchVisitsForDate(selectedDate); else fetchVisitsForWeek();
+      try {
+        const visit = allVisits.find(v => v.id === checkoutVisitId);
+        const report = `[INTERÉS: ${interest.toUpperCase()}]\n[PRÓXIMA ACCIÓN: ${nextAction}]\n\nRESULTADO: ${resultNotes}\n\nCHECKLIST: ${checklistObs}`;
+        
+        const { error } = await supabase.from("visits").update({ 
+          check_out_at: new Date().toISOString(), 
+          check_out_lat: pos.coords.latitude, 
+          check_out_lon: pos.coords.longitude,
+          observations: (visit?.observations ? visit.observations + "\n\n" : "") + report
+        }).eq("id", checkoutVisitId);
+
+        if (error) throw error;
+        
+        toast({ title: "📍 Visita Finalizada", description: "Ejecución y resultados registrados." });
+        setShowCheckoutModal(false);
+        setCheckoutVisitId(null);
+        setResultNotes("");
+        setNextAction("");
+        setActiveChecklist({});
+        setChecklistObs("");
+        
+        if (viewMode === "day") fetchVisitsForDate(selectedDate); else fetchVisitsForWeek();
+      } catch (err: any) {
+        toast({ title: "Error", description: err.message, variant: "destructive" });
+      } finally {
+        setSubmitting(false);
+      }
+    }, () => {
+      toast({ title: "Error", description: "No se pudo capturar la ubicación GPS para el cierre.", variant: "destructive" });
+      setSubmitting(false);
     });
   };
 
@@ -520,572 +691,325 @@ export default function Visitas() {
           </div>
         )}
 
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-display font-bold text-foreground">
-            {isGerente ? "Gestión de Visitas" : "Mi Agenda"}
-          </h1>
-          <p className="text-xs sm:text-sm text-muted-foreground">
-            {isGerente ? "Aprobación y seguimiento del equipo" : "Programa y registra tus visitas"}
-          </p>
-        </div>
-          <div className="flex items-center gap-2">
-            <div className="flex rounded-lg border border-border overflow-hidden">
-              <button onClick={() => setViewMode("day")} className={cn("px-3 py-2.5 text-xs font-medium transition-colors", viewMode === "day" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}>Día</button>
-              <button onClick={() => setViewMode("week")} className={cn("px-3 py-2.5 text-xs font-medium transition-colors", viewMode === "week" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}>Semana</button>
-              <button onClick={() => setViewMode("month")} className={cn("px-3 py-2.5 text-xs font-medium transition-colors flex items-center gap-1", viewMode === "month" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}>
-                <Maximize2 className="h-3 w-3" /> <span className="hidden sm:inline">Mes</span>
-              </button>
+        {/* Header & Controls */}
+        <div className="flex flex-col gap-4 mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-display font-black text-white tracking-tight flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                  <MapPin className="h-5 w-5 text-primary" />
+                </div>
+                {isGerente ? "Gestión de Visitas" : "Mi Agenda"}
+              </h1>
+              <p className="text-xs sm:text-sm text-muted-foreground mt-1">Control de ejecución y fuerza de ventas en campo.</p>
             </div>
-            {!isGerente && (
-              <div className="flex items-center gap-2">
-                <button 
-                  onClick={() => setShowQuickVisit(true)} 
-                  className="flex items-center gap-2 rounded-xl bg-secondary/10 border border-secondary/20 px-4 py-2.5 text-sm font-semibold text-secondary transition-all hover:bg-secondary/20 active:scale-95"
+            
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 scrollbar-none no-scrollbar">
+              <button
+                onClick={() => { setShowQuickVisit(true); setClientSearch(""); }}
+                className="whitespace-nowrap flex items-center gap-2 rounded-xl bg-secondary/10 border border-secondary/20 px-4 h-11 text-xs font-bold text-secondary shadow-lg active:scale-95 transition-all"
+              >
+                <Navigation className="h-4 w-4" /> Rápida
+              </button>
+              {!isGerente && (
+                <button
+                  onClick={() => setShowForm(!showForm)}
+                  className="whitespace-nowrap flex items-center gap-2 rounded-xl gradient-gold px-4 h-11 text-xs font-bold text-primary-foreground shadow-lg active:scale-95 transition-all"
                 >
-                  <MapPin className="h-4 w-4" /> <span>Rápida</span>
+                  <Plus className="h-4 w-4" /> {showForm ? "Cerrar" : "Nueva Visita"}
                 </button>
-                <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-2 rounded-xl gradient-gold px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-all hover:opacity-90 shadow-lg active:scale-95">
-                  <Plus className="h-4 w-4" /> <span className="hidden sm:inline">Nueva Visita</span><span className="sm:hidden">Visita</span>
-                </button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
+
+          {/* View Mode & Navigator */}
+          <div className="flex flex-col sm:flex-row items-center gap-3 bg-card/40 border border-border/40 p-2 rounded-2xl">
+          <div className="flex w-full sm:w-auto p-1 bg-muted/30 rounded-xl">
+            <button 
+              onClick={() => setViewMode("day")}
+              className={cn("flex-1 px-4 py-2 text-xs font-bold rounded-lg transition-all", viewMode === "day" ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground")}
+            >DÍA</button>
+            <button 
+              onClick={() => setViewMode("week")}
+              className={cn("flex-1 px-4 py-2 text-xs font-bold rounded-lg transition-all", viewMode === "week" ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground")}
+            >SEMANA</button>
+            <button 
+              onClick={() => setViewMode("month")}
+              className={cn("flex-1 px-4 py-2 text-xs font-bold rounded-lg transition-all", viewMode === "month" ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground")}
+            >MES</button>
+          </div>
+
+          <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start">
+            <button onClick={() => navigateDate(-1)} className="p-2 rounded-xl border border-border hover:bg-muted transition-colors h-10 w-10 flex items-center justify-center shrink-0">
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            
+            <p className="text-sm font-bold text-foreground min-w-[120px] text-center capitalize">
+              {viewMode === "day" ? new Date(selectedDate + "T12:00:00").toLocaleDateString("es", { weekday: "long", day: "numeric", month: "short" }) : new Date(selectedDate + "T12:00:00").toLocaleDateString("es", { month: "long", year: "numeric" })}
+            </p>
+
+            <button onClick={() => navigateDate(1)} className="p-2 rounded-xl border border-border hover:bg-muted transition-colors h-10 w-10 flex items-center justify-center shrink-0">
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* Date Navigator */}
-      <div className="flex items-center gap-3">
-        <button onClick={() => navigateDate(-1)} className="rounded-lg border border-border bg-card p-2.5 hover:bg-muted transition-colors">
-          <ChevronLeft className="h-4 w-4 text-foreground" />
-        </button>
-        <div className="flex-1">
-          {viewMode === "month" ? (
-            <div>
-              <p className="text-center text-lg font-display font-bold text-foreground capitalize mb-3">
-                {dateDisplay.toLocaleDateString("es", { month: "long", year: "numeric" })}
-              </p>
-              <div className="grid grid-cols-7 gap-1">
-                {["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map(d => (
-                  <div key={d} className="text-center text-[10px] uppercase tracking-widest text-muted-foreground py-1">{d}</div>
-                ))}
-                {getMonthDays.map((d, idx) => {
-                  if (!d) return <div key={`pad-${idx}`} />;
-                  const dd = new Date(d + "T12:00:00");
-                  const isToday = d === today;
-                  const dayVisits = allVisits.filter(v => v.visit_date === d);
-                  return (
-                    <button key={d} onClick={() => { setSelectedDate(d); setViewMode("day"); }}
-                      className={cn(
-                        "rounded-lg p-1.5 text-center transition-all border",
-                        isToday ? "border-secondary bg-secondary/10" : dayVisits.length > 0 ? "border-primary/20 bg-primary/5" : "border-transparent hover:bg-muted"
-                      )}>
-                      <p className={cn("text-xs font-medium", isToday ? "text-secondary font-bold" : "text-foreground")}>{dd.getDate()}</p>
-                      {dayVisits.length > 0 && (
-                        <div className="flex justify-center gap-0.5 mt-0.5">
-                          {dayVisits.slice(0, 3).map((v, i) => (
-                            <span key={i} className={cn("h-1 w-1 rounded-full", v.approved === true ? "bg-secondary" : v.approved === false ? "bg-destructive" : "bg-primary")} />
-                          ))}
-                        </div>
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+        
+        {/* Sidebar: Filters & Calendar */}
+        <div className="xl:col-span-1 space-y-6">
+          <div className="rounded-2xl border border-border/60 bg-card p-4">
+            <div className="text-center font-bold text-sm mb-2">{new Date(selectedDate + "T12:00:00").toLocaleDateString("es", { month: "long" })}</div>
+            <div className="grid grid-cols-7 gap-1">
+               {["L","M","M","J","V","S","D"].map(d => <div key={d} className="text-[10px] text-muted-foreground text-center">{d}</div>)}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-border/60 bg-card p-4 space-y-4">
+             <div className="flex items-center justify-between">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Filtros</p>
+                <Filter className="h-3 w-3 text-muted-foreground" />
+             </div>
+             <div className="space-y-3">
+                <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="w-full h-11 rounded-xl border border-border bg-background px-3 text-sm focus:ring-1 focus:ring-primary outline-none">
+                  <option value="todos">Todos los tipos</option>
+                  {visitTypes.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+                </select>
+
+                <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full h-11 rounded-xl border border-border bg-background px-3 text-sm focus:ring-1 focus:ring-primary outline-none">
+                  <option value="todos">Todos los estados</option>
+                  <option value="pendiente">Pendiente</option>
+                  <option value="aprobada">Aprobada</option>
+                  <option value="atrasada">Atrasada</option>
+                  <option value="completada">Completada</option>
+                </select>
+
+                {isGerente && (
+                  <select value={filterVisitor} onChange={(e) => setFilterVisitor(e.target.value)} className="w-full h-11 rounded-xl border border-border bg-background px-3 text-sm focus:ring-1 focus:ring-primary outline-none">
+                    <option value="todos">Todos los visitadores</option>
+                    {visitors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                  </select>
+                )}
+             </div>
+          </div>
+        </div>
+
+        {/* List Content */}
+        <div className="xl:col-span-2 space-y-4">
+          
+          {/* New Visit Form (Inline) */}
+          {showForm && (
+            <div className="rounded-2xl border-2 border-primary/30 bg-card p-6 space-y-6 animate-slide-in gold-glow mb-6">
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-display font-bold text-foreground">Programar Visitas</h3>
+                <button onClick={addEntry} className="text-xs font-bold text-primary flex items-center gap-1">
+                  <Plus className="h-3 w-3" /> Agregar otra
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {formEntries.map((entry, idx) => (
+                  <div key={idx} className="p-4 rounded-xl border border-border bg-background/40 space-y-4">
+                    <div className="flex items-center justify-between border-b border-border/40 pb-2">
+                      <span className="text-[10px] font-bold text-muted-foreground uppercase">Visita #{idx + 1}</span>
+                      {formEntries.length > 1 && (
+                        <button onClick={() => removeEntry(idx)} className="text-destructive"><X className="h-4 w-4" /></button>
                       )}
-                      {dayVisits.length > 0 && <p className="text-[8px] text-muted-foreground">{dayVisits.length}</p>}
-                    </button>
-                  );
-                })}
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Cliente *</label>
+                      <select value={entry.clientId} onChange={(e) => updateEntry(idx, "clientId", e.target.value)} className="w-full h-11 rounded-xl border border-border bg-background px-3 text-sm outline-none focus:ring-1 focus:ring-primary">
+                        <option value="">Seleccionar...</option>
+                        {clients.map(c => <option key={c.id} value={c.id}>{c.name} {c.city ? `(${c.city})` : ""}</option>)}
+                      </select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Fecha</label>
+                        <input type="date" value={entry.date} onChange={(e) => updateEntry(idx, "date", e.target.value)} className="w-full h-11 rounded-xl border border-border bg-background px-3 text-sm outline-none focus:ring-1 focus:ring-primary" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Hora</label>
+                        <input type="time" value={entry.time} onChange={(e) => updateEntry(idx, "time", e.target.value)} className="w-full h-11 rounded-xl border border-border bg-background px-3 text-sm outline-none focus:ring-1 focus:ring-primary" />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-bold text-muted-foreground uppercase mb-2 block">Objetivo de Visita</label>
+                      <div className="grid grid-cols-1 gap-2">
+                        {visitTypes.map(t => (
+                          <button key={t.key} onClick={() => updateEntry(idx, "type", t.key)} className={cn("flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all", entry.type === t.key ? "border-primary bg-primary/5" : "border-border bg-background hover:border-muted-foreground")}>
+                            <t.icon className={cn("h-4 w-4", entry.type === t.key ? "text-primary" : "text-muted-foreground")} />
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold truncate">{t.label}</p>
+                              <p className="text-[9px] text-muted-foreground truncate">{t.desc}</p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Viáticos Request */}
+              <div className={cn("p-4 rounded-xl border-2 transition-all", needsViatico ? "border-primary/30 bg-primary/5" : "border-border")}>
+                <label className="flex items-center gap-3 cursor-pointer">
+                   <div className={cn("h-5 w-5 rounded border flex items-center justify-center", needsViatico ? "bg-primary border-primary" : "border-muted-foreground")}>
+                     {needsViatico && <Check className="h-3 w-3 text-white" />}
+                   </div>
+                   <input type="checkbox" checked={needsViatico} onChange={e => setNeedsViatico(e.target.checked)} className="hidden" />
+                   <span className="text-sm font-bold flex items-center gap-2"><DollarSign className="h-4 w-4 text-primary" /> Solicitar Viáticos</span>
+                </label>
+                {needsViatico && (
+                  <div className="mt-4 grid grid-cols-2 gap-3 animate-in slide-in-from-top-2">
+                    {[{l: "Transporte", v: viaticoTransporte, s: setViaticoTransporte}, {l: "Hospedaje", v: viaticoHospedaje, s: setViaticoHospedaje}, {l: "Comida", v: viaticoAlimentacion, s: setViaticoAlimentacion}, {l: "Otros", v: viaticoOtros, s: setViaticoOtros}].map(x => (
+                      <div key={x.l}>
+                        <label className="text-[10px] text-muted-foreground uppercase block mb-1">{x.l}</label>
+                        <input type="number" value={x.v || ""} onChange={e => x.s(Number(e.target.value))} className="w-full h-10 rounded-lg border border-border bg-background px-3 text-sm outline-none focus:ring-1 focus:ring-primary" placeholder="0" />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3">
+                <button onClick={resetForm} className="flex-1 h-12 rounded-xl border border-border font-bold text-muted-foreground text-sm">Cancelar</button>
+                <button onClick={handleCreateVisits} disabled={submitting} className="flex-2 h-12 rounded-xl gradient-gold font-black text-primary-foreground text-sm shadow-lg shadow-primary/20">
+                  {submitting ? "ENVIANDO..." : "PROGRAMAR VISITAS"}
+                </button>
               </div>
             </div>
-          ) : viewMode === "week" ? (
-            <div className="grid grid-cols-7 gap-1">
-              {weekDays.map((d) => {
-                const dd = new Date(d + "T12:00:00");
-                const isToday = d === today;
-                const isSelected = d === selectedDate;
-                const dayVisits = allVisits.filter((v) => v.visit_date === d);
+          )}
+
+          {/* Visits List Rendering */}
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-20 gap-4">
+              <Loader2 className="h-10 w-10 animate-spin text-primary" />
+              <p className="text-sm text-muted-foreground">Cargando agenda...</p>
+            </div>
+          ) : filteredVisits.length === 0 ? (
+            <div className="rounded-3xl border-2 border-dashed border-border p-16 text-center space-y-4">
+              <div className="h-16 w-16 rounded-full bg-muted/20 flex items-center justify-center mx-auto">
+                <CalendarDays className="h-8 w-8 text-muted-foreground" />
+              </div>
+              <div>
+                <h3 className="text-lg font-display font-bold text-foreground">No hay visitas</h3>
+                <p className="text-sm text-muted-foreground">No se encontraron registros para los filtros seleccionados.</p>
+              </div>
+              {!isGerente && (
+                <button onClick={() => setShowForm(true)} className="gradient-gold px-6 py-2.5 rounded-xl font-bold text-primary-foreground text-sm shadow-lg">
+                  Programar ahora
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filteredVisits.map((v) => {
+                const isActive = v.check_in_at && !v.check_out_at;
+                const isDelayed = v.visit_date < today && !v.check_in_at && !v.justification;
+                const isCompleted = !!v.check_out_at;
+                const tipo = tipoMap[v.visit_type];
+                const Icon = tipo?.icon || Briefcase;
+
                 return (
-                  <button key={d} onClick={() => { setSelectedDate(d); setViewMode("day"); }}
-                    className={cn(
-                      "rounded-xl p-2 text-center transition-all border-2",
-                      isSelected ? "border-primary bg-primary/10" : isToday ? "border-secondary/30 bg-secondary/5" : "border-transparent hover:bg-muted"
-                    )}>
-                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{dd.toLocaleDateString("es", { weekday: "short" })}</p>
-                    <p className={cn("text-lg font-display font-bold", isToday ? "text-secondary" : "text-foreground")}>{dd.getDate()}</p>
-                    {dayVisits.length > 0 && (
-                      <div className="flex justify-center gap-0.5 mt-1">
-                        {dayVisits.slice(0, 3).map((v, i) => (
-                          <span key={i} className={cn("h-1.5 w-1.5 rounded-full", v.approved === true ? "bg-secondary" : v.approved === false ? "bg-destructive" : "bg-primary")} />
-                        ))}
-                        {dayVisits.length > 3 && <span className="text-[8px] text-muted-foreground">+{dayVisits.length - 3}</span>}
+                  <div key={v.id} className={cn(
+                    "relative overflow-hidden rounded-2xl border-2 bg-card p-4 transition-all duration-300",
+                    isActive ? "border-primary gold-glow" : "border-border/60 hover:border-border",
+                    isDelayed ? "border-destructive/30 bg-destructive/5" : ""
+                  )}>
+                    <div className="flex gap-4">
+                      {/* Left: Time Column */}
+                      <div className="flex flex-col items-center justify-start w-12 shrink-0 border-r border-border/40 pr-4">
+                        <p className="text-lg font-display font-black text-foreground leading-tight">{v.scheduled_time?.split(":")[0] || "--"}</p>
+                        <p className="text-[10px] font-bold text-muted-foreground">{v.scheduled_time?.split(":")[1] || "00"}</p>
+                        {viewMode === "week" && (
+                          <p className="text-[8px] font-black uppercase text-primary mt-2">{new Date(v.visit_date + "T12:00:00").toLocaleDateString("es", { weekday: "short" })}</p>
+                        )}
                       </div>
-                    )}
-                  </button>
+
+                      {/* Center: Main Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className={cn("text-[9px] font-black uppercase tracking-[0.2em] mb-1", tipo?.color.split(" ")[1] || "text-primary")}>
+                              {tipo?.label || "VISITA"}
+                            </p>
+                            <h3 className="text-base font-bold text-white truncate leading-none mb-1">{v.client?.name || "Sin nombre"}</h3>
+                            <div className="flex items-center gap-3 mt-1 flex-wrap">
+                              <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                <MapPin className="h-2.5 w-2.5" /> {v.client?.city || "Sin ciudad"}
+                              </span>
+                              <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                <User className="h-2.5 w-2.5" /> {v.created_by_profile?.full_name?.split(" ")[0] || "Visitador"}
+                              </span>
+                            </div>
+                          </div>
+                          
+                          {/* Status Badge */}
+                          <div className="shrink-0 flex flex-col items-end gap-1">
+                             {v.approved === null && !isDelayed && <span className="text-[8px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded-full uppercase">Pendiente</span>}
+                             {v.approved === true && !isCompleted && !isDelayed && <span className="text-[8px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded-full uppercase">Aprobada</span>}
+                             {v.approved === false && <span className="text-[8px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20 px-1.5 py-0.5 rounded-full uppercase">Rechazada</span>}
+                             {isDelayed && <span className="text-[8px] font-bold bg-destructive text-white px-1.5 py-0.5 rounded-full uppercase animate-pulse">Atrasada</span>}
+                             {isCompleted && <span className="text-[8px] font-bold bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full uppercase">Completada</span>}
+                          </div>
+                        </div>
+
+                        {v.observations && <p className="text-[10px] text-muted-foreground mt-3 bg-white/5 rounded-lg p-2 italic leading-relaxed">"{v.observations}"</p>}
+
+                        {/* Checklist - Only for Active */}
+                        {isActive && (
+                          <div className="mt-4 p-3 rounded-xl bg-primary/10 border border-primary/20 space-y-2 animate-in slide-in-from-top-2">
+                             <p className="text-[9px] font-black uppercase text-primary tracking-widest flex items-center gap-1.5">
+                               <ClipboardList className="h-3 w-3" /> Checklist de Ejecución
+                             </p>
+                             <div className="space-y-1.5">
+                               {["Ficha técnica entregada", "Demo equipo realizada", "Acuerdo de próximo paso"].map(check => (
+                                 <label key={check} className="flex items-center gap-2 cursor-pointer group">
+                                    <div className={cn("h-4 w-4 rounded border flex items-center justify-center transition-all", activeChecklist[check] ? "bg-primary border-primary" : "border-muted-foreground/40")}>
+                                      {activeChecklist[check] && <Check className="h-2.5 w-2.5 text-black" />}
+                                    </div>
+                                    <input type="checkbox" className="hidden" onChange={() => setActiveChecklist({...activeChecklist, [check]: !activeChecklist[check]})} />
+                                    <span className={cn("text-[10px] transition-colors", activeChecklist[check] ? "text-white font-bold" : "text-muted-foreground")}>{check}</span>
+                                 </label>
+                               ))}
+                             </div>
+                          </div>
+                        )}
+
+                        {/* Actions Mobile Optimized */}
+                        <div className="mt-4 flex flex-col sm:flex-row gap-2">
+                          {!isGerente && isDelayed && (
+                            <button onClick={() => setJustifyingVisit(v)} className="w-full h-10 rounded-xl bg-destructive text-white text-xs font-bold active:scale-95 transition-all">JUSTIFICAR ATRASO</button>
+                          )}
+                          {!isGerente && v.approved === true && !v.check_in_at && !isDelayed && (
+                            <button onClick={() => handleCheckIn(v.id)} className="w-full h-10 rounded-xl bg-emerald-500 text-white text-xs font-bold flex items-center justify-center gap-2 active:scale-95 transition-all">
+                              <Navigation className="h-4 w-4" /> CHECK-IN 📍
+                            </button>
+                          )}
+                          {!isGerente && isActive && (
+                            <button onClick={() => handleCheckOut(v.id)} className="w-full h-10 rounded-xl gradient-gold text-primary-foreground text-xs font-black flex items-center justify-center gap-2 animate-pulse active:scale-95 transition-all">
+                              <Navigation className="h-4 w-4" /> CHECK-OUT ✔️
+                            </button>
+                          )}
+                          {isGerente && (v.approved === null || isDelayed) && (
+                            <div className="flex gap-2 w-full">
+                              <button onClick={() => handleApprove(v.id, true)} className="flex-1 h-10 rounded-xl bg-emerald-500 text-white text-xs font-bold active:scale-95 transition-all">APROBAR</button>
+                              <button onClick={() => handleApprove(v.id, false)} className="flex-1 h-10 rounded-xl bg-destructive/20 text-destructive border border-destructive/30 text-xs font-bold active:scale-95 transition-all">RECHAZAR</button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 );
               })}
             </div>
-          ) : (
-            <div className="text-center">
-              <p className="text-lg font-display font-bold text-foreground capitalize">{dateDisplay.toLocaleDateString("es", { weekday: "long" })}</p>
-              <p className="text-sm text-muted-foreground">{dateDisplay.toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric" })}</p>
-              {selectedDate === today && <span className="inline-block mt-1 rounded-full bg-primary/10 text-primary px-3 py-0.5 text-[10px] font-semibold">HOY</span>}
-            </div>
-          )}
-        </div>
-        <button onClick={() => navigateDate(1)} className="rounded-lg border border-border bg-card p-2.5 hover:bg-muted transition-colors">
-          <ChevronRight className="h-4 w-4 text-foreground" />
-        </button>
-        <button onClick={() => setSelectedDate(today)} className="rounded-lg border border-border bg-card px-3 py-2.5 text-xs font-medium text-foreground hover:bg-muted transition-colors">Hoy</button>
-      </div>
-
-  {/* Stats */}
-      <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-        {[
-          { label: "Program.", value: totalVisits, color: "text-foreground" },
-          { label: "Aprobadas", value: approvedCount, color: "text-emerald-400" },
-          { label: "Pendientes", value: pendingCount, color: "text-primary" },
-          { label: "Atrasadas", value: delayedCount, color: "text-destructive" },
-          { label: "Completas", value: completedCount, color: "text-muted-foreground" },
-        ].map((s) => (
-          <div key={s.label} className="rounded-xl border border-border bg-card p-2 text-center">
-            <p className={cn("text-xl font-display font-bold", s.color)}>{s.value}</p>
-            <p className="text-[9px] uppercase tracking-wide text-muted-foreground">{s.label}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Filters */}
-      <div className="flex gap-2 items-center overflow-x-auto pb-1 scrollbar-none">
-        <Filter className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-        <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground outline-none focus:ring-1 focus:ring-primary shrink-0 h-9">
-          <option value="todos">Todos los tipos</option>
-          {visitTypes.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
-        </select>
-        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground outline-none focus:ring-1 focus:ring-primary shrink-0 h-9">
-          <option value="todos">Todos estados</option>
-          <option value="pendiente">Pendiente</option>
-          <option value="aprobada">Aprobada</option>
-          <option value="atrasada">Atrasada</option>
-          <option value="rechazada">Rechazada</option>
-          <option value="completada">Completada</option>
-        </select>
-        {isGerente && (
-          <select value={filterVisitor} onChange={(e) => setFilterVisitor(e.target.value)} className="rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground outline-none focus:ring-1 focus:ring-primary ml-auto shrink-0 h-9">
-            <option value="todos">Todos los visitadores</option>
-            {visitors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-          </select>
-        )}
-      </div>
-
-      {/* New Visit Form */}
-      {showForm && (
-        <div className="rounded-2xl border-2 border-primary/30 bg-card p-6 space-y-5 animate-slide-in gold-glow">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl gradient-gold flex items-center justify-center">
-                <CalendarDays className="h-5 w-5 text-primary-foreground" />
-              </div>
-              <div>
-                <h3 className="text-base font-display font-bold text-foreground">Programar Visitas</h3>
-                <p className="text-xs text-muted-foreground">Puede agregar múltiples visitas a la vez</p>
-              </div>
-            </div>
-            <button onClick={addEntry} className="flex items-center gap-1 text-xs font-semibold text-primary hover:text-primary/80 transition-colors">
-              <Plus className="h-3.5 w-3.5" /> Agregar otra
-            </button>
-          </div>
-
-          {/* Visit entries */}
-          <div className="space-y-4">
-            {formEntries.map((entry, idx) => (
-              <div key={idx} className={cn("rounded-xl border p-4 space-y-3", entry.type ? "border-primary/20 bg-primary/5" : "border-border")}>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-muted-foreground">Visita #{idx + 1}</span>
-                  {formEntries.length > 1 && (
-                    <button onClick={() => removeEntry(idx)} className="text-xs text-destructive hover:text-destructive/80">
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                </div>
-
-                {/* Client with search */}
-                <div>
-                  <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1 block">
-                    <User className="h-3 w-3 inline mr-1" />Cliente / Médico *
-                  </label>
-                  <select value={entry.clientId} onChange={(e) => updateEntry(idx, "clientId", e.target.value)}
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground focus:ring-1 focus:ring-primary outline-none">
-                    <option value="">Seleccionar cliente...</option>
-                    {clients.map((c) => <option key={c.id} value={c.id}>{c.name} {c.city ? `· ${c.city}` : ""}</option>)}
-                  </select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1 block">Fecha *</label>
-                    <input type="date" value={entry.date} onChange={(e) => updateEntry(idx, "date", e.target.value)}
-                      className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground focus:ring-1 focus:ring-primary outline-none" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1 block">Hora *</label>
-                    <input type="time" value={entry.time} step="900"
-                      onChange={(e) => updateEntry(idx, "time", e.target.value)}
-                      className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground focus:ring-1 focus:ring-primary outline-none" />
-                  </div>
-                </div>
-
-                {/* Visit type selection - REQUIRED, no free text */}
-                <div>
-                  <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-2 block">
-                    Tipo de Visita * <span className="text-destructive">(obligatorio)</span>
-                  </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                    {visitTypes.map((t) => {
-                      const Icon = t.icon;
-                      const isSelected = entry.type === t.key;
-                      return (
-                        <button key={t.key} onClick={() => updateEntry(idx, "type", t.key)}
-                          className={cn(
-                            "rounded-xl border-2 p-3 text-left transition-all active:scale-[0.98]",
-                            isSelected ? t.color + " border-current shadow-sm" : "border-border hover:border-muted-foreground bg-background"
-                          )}>
-                          <div className="flex items-center gap-2">
-                            <Icon className="h-5 w-5 shrink-0" />
-                            <div className="min-w-0">
-                              <p className={cn("text-xs font-semibold", isSelected ? "" : "text-foreground")}>{t.label}</p>
-                              <p className="text-[10px] text-muted-foreground">{t.desc}</p>
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {!entry.type && <p className="text-[10px] text-destructive mt-1">Seleccione un tipo de visita</p>}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Observations */}
-          <div>
-            <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1 block">Observaciones (opcional)</label>
-            <textarea value={formObs} onChange={(e) => setFormObs(e.target.value)} rows={2}
-              className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground focus:ring-1 focus:ring-primary outline-none resize-none"
-              placeholder="Notas adicionales..." />
-          </div>
-
-          {/* Viáticos */}
-          <div className={cn("rounded-xl border-2 p-4 space-y-3 transition-all", needsViatico ? "border-primary/30 bg-primary/5" : "border-border")}>
-            <label className="flex items-center gap-3 cursor-pointer">
-              <div className={cn("h-5 w-5 rounded-md border-2 flex items-center justify-center transition-all", needsViatico ? "bg-primary border-primary" : "border-border")}>
-                {needsViatico && <Check className="h-3 w-3 text-primary-foreground" />}
-              </div>
-              <input type="checkbox" checked={needsViatico} onChange={(e) => setNeedsViatico(e.target.checked)} className="sr-only" />
-              <span className="text-sm font-semibold text-foreground flex items-center gap-2">
-                <DollarSign className="h-4 w-4 text-primary" /> Solicitar Viáticos
-              </span>
-            </label>
-            {needsViatico && (
-              <div className="space-y-3 pt-2 animate-slide-in">
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  {[
-                    { label: "🚗 Transporte", value: viaticoTransporte, set: setViaticoTransporte },
-                    { label: "🏨 Hospedaje", value: viaticoHospedaje, set: setViaticoHospedaje },
-                    { label: "🍽️ Alimentación", value: viaticoAlimentacion, set: setViaticoAlimentacion },
-                    { label: "📝 Otros", value: viaticoOtros, set: setViaticoOtros },
-                  ].map(({ label, value, set }) => (
-                    <div key={label}>
-                      <label className="text-[10px] font-semibold text-muted-foreground mb-1 block">{label}</label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">₲</span>
-                        <input type="number" value={value || ""} onChange={(e) => set(Number(e.target.value))}
-                          className="w-full rounded-lg border border-border bg-background pl-7 pr-3 py-2 text-sm text-foreground focus:ring-1 focus:ring-primary outline-none" placeholder="0" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                {viaticoOtros > 0 && (
-                  <input type="text" value={viaticoOtrosDesc} onChange={(e) => setViaticoOtrosDesc(e.target.value)}
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:ring-1 focus:ring-primary outline-none"
-                    placeholder="Descripción de otros gastos..." />
-                )}
-                <div className="flex items-center justify-between rounded-lg bg-primary/10 px-4 py-2.5">
-                  <span className="text-xs font-medium text-muted-foreground">Total Viáticos</span>
-                  <span className="text-base font-display font-bold text-primary">
-                    {formatPYG(viaticoTransporte + viaticoHospedaje + viaticoAlimentacion + viaticoOtros)}
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-3 pt-2">
-            <button onClick={resetForm} className="flex-1 sm:flex-none px-5 h-12 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted transition-colors">Cancelar</button>
-            <button onClick={handleCreateVisits} disabled={submitting || formEntries.every((e) => !e.clientId || !e.type)}
-              className="flex-1 flex items-center justify-center gap-2 h-12 rounded-xl gradient-gold text-sm font-bold text-primary-foreground transition-all hover:opacity-90 disabled:opacity-50 shadow-lg active:scale-[0.98]">
-              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              Enviar {formEntries.filter((e) => e.clientId && e.type).length} visita(s)
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Justification Dialog */}
-      {justifyingVisit && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border-2 border-destructive/30 bg-card p-6 shadow-2xl animate-scale-in">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="h-10 w-10 rounded-xl bg-destructive/10 flex items-center justify-center">
-                <AlertTriangle className="h-5 w-5 text-destructive" />
-              </div>
-              <div>
-                <h3 className="text-base font-display font-bold text-foreground">Justificar Atraso</h3>
-                <p className="text-xs text-muted-foreground">La visita a {justifyingVisit.client?.name} ha quedado atrasada.</p>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1 block">Motivo Estándar *</label>
-                <select
-                  value={justificationOption}
-                  onChange={(e) => setJustificationOption(e.target.value)}
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:ring-1 focus:ring-primary outline-none"
-                >
-                  <option value="">Seleccione un motivo...</option>
-                  {standardJustifications.map(j => <option key={j} value={j}>{j}</option>)}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1 block">Observaciones Adicionales</label>
-                <textarea
-                  value={justificationObs}
-                  onChange={(e) => setJustificationObs(e.target.value)}
-                  placeholder="Detalles opcionales sobre el atraso..."
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:ring-1 focus:ring-primary outline-none resize-none h-20"
-                />
-              </div>
-
-              <div className="bg-muted/30 rounded-xl p-4 border border-border">
-                <p className="text-xs font-semibold text-foreground mb-3 flex items-center gap-1.5">
-                  <Calendar className="h-3.5 w-3.5 text-primary" /> ¿Cuándo será la nueva visita?
-                </p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[10px] text-muted-foreground mb-1 block uppercase">Nueva Fecha</label>
-                    <input type="date" value={rescheduleDate} onChange={(e) => setRescheduleDate(e.target.value)}
-                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] text-muted-foreground mb-1 block uppercase">Nueva Hora</label>
-                    <input type="time" value={rescheduleTime} step="900" onChange={(e) => setRescheduleTime(e.target.value)}
-                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary" />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex gap-3 justify-end mt-6">
-              <button
-                onClick={() => {
-                  setJustifyingVisit(null);
-                  setJustificationOption("");
-                  setJustificationObs("");
-                }}
-                className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
-              >
-                Cancelar
-              </button>
-              <button onClick={handleJustify} disabled={!justificationOption || !rescheduleDate || submitting}
-                className="flex items-center gap-2 rounded-xl bg-destructive px-6 py-2 text-sm font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-50">
-                {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-                Grabar Justificación
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Visits List */}
-      {loading ? (
-        <div className="flex justify-center py-16"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
-      ) : filteredVisits.length === 0 ? (
-        <div className="rounded-2xl border-2 border-dashed border-border bg-card/50 p-12 text-center">
-          <CalendarDays className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-          <p className="text-base font-display font-semibold text-foreground mb-1">Sin visitas</p>
-          <p className="text-sm text-muted-foreground mb-4">{viewMode === "week" ? "No hay visitas esta semana" : "No hay visitas para este día"}</p>
-          {!isGerente && (
-            <button onClick={() => setShowForm(true)} className="inline-flex items-center gap-2 rounded-xl gradient-gold px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90">
-              <Plus className="h-4 w-4" /> Programar visita
-            </button>
-          )}
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {filteredVisits.map((v) => {
-            const isActive = v.check_in_at && !v.check_out_at;
-            const isDelayed = v.visit_date < today && !v.check_in_at && !v.justification && (v.approved === true || v.approved === null);
-            const isCompleted = !!v.check_out_at;
-            const isPending = v.approved === null && !isDelayed;
-            const isApproved = v.approved === true && !isDelayed;
-            const isRejected = v.approved === false;
-            const isJustified = !!v.justification;
-            const tipo = tipoMap[v.visit_type];
-            const Icon = tipo?.icon || Briefcase;
-
-            const checklists: Record<string, string[]> = {
-              soporte_tecnico_clinico: ["Equipamiento verificado", "Demostración realizada", "Material entregado", "Próximos pasos acordados"],
-              entrenamiento_capacitacion: ["Asistencia registrada", "Evaluación práctica", "Certificación entregada"],
-              gestion_relacion: ["Alineación estratégica", "Revisión de indicadores", "Feedback del cliente", "Oportunidad identificada"],
-              promocion_producto: ["Ficha técnica entregada", "Comparativa competencia", "Muestra entregada"],
-              seguimiento_oportunidades: ["Inventario revisado", "Proyección de compra", "Renovación solicitada"],
-              postventa_incidencias: ["Reclamo documentado", "Solución inmediata", "Escalamiento avisado"]
-            };
-
-            return (
-              <div key={v.id} className={cn(
-                "rounded-2xl border-2 bg-card p-4 transition-all",
-                isActive && "border-primary/40 gold-glow",
-                isCompleted && "border-secondary/30 opacity-80",
-                isPending && "border-primary/20",
-                isDelayed && "border-destructive/40 bg-destructive/5 animate-pulse",
-                isRejected && "border-destructive/20 opacity-60",
-                isApproved && !isActive && !isCompleted && "border-secondary/20",
-                isJustified && "border-border opacity-70"
-              )}>
-                <div className="flex items-start gap-3">
-                  {/* Time + date */}
-                  <div className="shrink-0 text-center">
-                    {viewMode === "week" && (
-                      <p className="text-[10px] text-muted-foreground mb-1">{new Date(v.visit_date + "T12:00:00").toLocaleDateString("es", { weekday: "short", day: "numeric" })}</p>
-                    )}
-                    <div className={cn("rounded-xl px-3 py-2 min-w-[56px]", isActive ? "gradient-gold" : "bg-muted")}>
-                      <p className={cn("text-sm font-mono font-bold", isActive ? "text-primary-foreground" : "text-foreground")}>
-                        {v.scheduled_time?.substring(0, 5) || "--:--"}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <h3 className="font-display font-bold text-foreground">{v.client?.name || "Cliente"}</h3>
-                        <div className="flex items-center gap-2 mt-1 flex-wrap">
-                          {v.client?.city && <span className="text-xs text-muted-foreground flex items-center gap-1"><MapPin className="h-3 w-3" /> {v.client.city}</span>}
-                          <span className={cn("inline-flex items-center gap-1.5 rounded-lg border px-2 py-0.5 text-[11px] font-medium", tipo?.color || "bg-muted text-muted-foreground border-border")}>
-                            <Icon className="h-3 w-3" /> {tipo?.label || v.visit_type}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-col items-end gap-1.5 shrink-0">
-                        {isPending && <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2.5 py-0.5 text-[10px] font-semibold"><AlertCircle className="h-3 w-3" /> Pendiente</span>}
-                        {isDelayed && <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 text-destructive px-2.5 py-0.5 text-[10px] font-semibold"><AlertTriangle className="h-3 w-3" /> ATRASADA</span>}
-                        {isApproved && !isCompleted && !isDelayed && <span className="inline-flex items-center gap-1 rounded-full bg-secondary/10 text-secondary px-2.5 py-0.5 text-[10px] font-semibold"><CheckCircle2 className="h-3 w-3" /> Aprobada</span>}
-                        {isRejected && <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 text-destructive px-2.5 py-0.5 text-[10px] font-semibold"><XCircle className="h-3 w-3" /> Rechazada</span>}
-                        {isCompleted && <span className="inline-flex items-center gap-1 rounded-full bg-secondary/10 text-secondary px-2.5 py-0.5 text-[10px] font-semibold"><CheckCircle2 className="h-3 w-3" /> Completada</span>}
-                        {isJustified && <span className="inline-flex items-center gap-1 rounded-full bg-muted text-muted-foreground px-2.5 py-0.5 text-[10px] font-semibold">Justificada / Reprogramada</span>}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 mt-2">
-                      <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-                        <User className="h-2.5 w-2.5" /> {v.created_by_profile?.full_name || "Desconocido"}
-                      </span>
-                    </div>
-
-                    {v.observations && <p className="text-xs text-muted-foreground mt-2 bg-muted/50 rounded-lg px-3 py-1.5">{v.observations}</p>}
-                    {v.justification && (
-                      <div className="mt-2 rounded-lg border border-border bg-destructive/5 p-2.5">
-                        <p className="text-[10px] font-bold text-destructive uppercase mb-1">Justificación de atraso:</p>
-                        <p className="text-xs text-foreground italic">"{v.justification}"</p>
-                        {v.rescheduled_date && (
-                          <p className="text-[10px] text-muted-foreground mt-1 font-semibold">
-                            Reprogramada para: {v.rescheduled_date} {v.rescheduled_time?.substring(0, 5)}
-                          </p>
-                        )}
-                      </div>
-                    )}
-
-                    {v.viatico && (
-                      <div className="mt-2 rounded-lg border border-border bg-background/50 p-2.5 flex items-center justify-between">
-                        <span className="text-xs font-medium text-foreground flex items-center gap-1"><DollarSign className="h-3 w-3" /> Viáticos</span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-display font-bold text-primary">{formatPYG(v.viatico.total)}</span>
-                          <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold",
-                            v.viatico.status === "aprobado" ? "bg-secondary/10 text-secondary" :
-                              v.viatico.status === "rechazado" ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary"
-                          )}>{v.viatico.status}</span>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Digital Checklist for Active Visit */}
-                    {isActive && (
-                      <div className="mt-4 rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3 animate-slide-in">
-                        <p className="text-[10px] font-bold text-primary uppercase tracking-widest flex items-center gap-2">
-                          <ClipboardList className="h-3 w-3" /> Checklist de Ejecución
-                        </p>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {checklists[v.visit_type]?.map((item) => (
-                            <label key={item} className="flex items-center gap-3 cursor-pointer group">
-                              <div 
-                                onClick={() => setActiveChecklist(prev => ({ ...prev, [item]: !prev[item] }))}
-                                className={cn(
-                                  "h-5 w-5 rounded border flex items-center justify-center transition-all",
-                                  activeChecklist[item] ? "bg-primary border-primary shadow-sm" : "border-muted-foreground/30 group-hover:border-primary"
-                                )}
-                              >
-                                {activeChecklist[item] && <Check className="h-3.5 w-3.5 text-primary-foreground" />}
-                              </div>
-                              <span className={cn("text-xs transition-colors", activeChecklist[item] ? "text-foreground font-medium" : "text-muted-foreground")}>
-                                {item}
-                              </span>
-                            </label>
-                          )) || <p className="text-xs text-muted-foreground italic">No hay checklist definido para este tipo.</p>}
-                        </div>
-                        <textarea 
-                          value={checklistObs} 
-                          onChange={(e) => setChecklistObs(e.target.value)}
-                          placeholder="Notas de ejecución y feedback..."
-                          rows={2}
-                          className="w-full mt-2 rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground focus:ring-1 focus:ring-primary outline-none resize-none"
-                        />
-                      </div>
-                    )}
-
-                    <div className="mt-3 flex flex-col sm:flex-row gap-2">
-                      {!isGerente && isDelayed && (
-                        <button onClick={() => setJustifyingVisit(v)} className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-destructive h-11 text-xs font-bold text-white hover:opacity-90 shadow-md active:scale-[0.98]">
-                          <AlertTriangle className="h-3 w-3" /> Justificar Atraso
-                        </button>
-                      )}
-                      {!isGerente && isApproved && !v.check_in_at && !isDelayed && (
-                        <button onClick={() => handleCheckIn(v.id)} className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 h-11 text-xs font-bold text-white hover:opacity-90 transition-all shadow-md active:scale-[0.98]">
-                          <Navigation className="h-4 w-4" /> Check-in 📍
-                        </button>
-                      )}
-                      {!isGerente && isActive && (
-                        <button onClick={() => handleCheckOut(v.id)} className="flex-1 flex items-center justify-center gap-1.5 rounded-xl gradient-gold h-11 text-xs font-bold text-primary-foreground hover:opacity-90 transition-all shadow-md animate-pulse active:scale-[0.98]">
-                          <Navigation className="h-4 w-4" /> Check-out ✔️
-                        </button>
-                      )}
-                      {isGerente && (isPending || isDelayed) && (
-                        <>
-                          <button onClick={() => handleApprove(v.id, true)} className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 h-11 text-xs font-bold text-white hover:opacity-90 shadow-md">
-                            <Check className="h-3 w-3" /> Aprobar
-                          </button>
-                          <button onClick={() => handleApprove(v.id, false)} className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-destructive/10 border border-destructive/20 h-11 text-xs font-bold text-destructive hover:bg-destructive/20">
-                            <X className="h-3 w-3" /> Rechazar
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
       </div>
 
       {/* Side Panel: Live Force Intelligence */}
@@ -1212,6 +1136,83 @@ export default function Visitas() {
               <p className="text-[9px] text-center text-muted-foreground uppercase tracking-widest leading-relaxed">
                 Al iniciar, se capturará su ubicación GPS y hora actual para el reporte de ejecución.
               </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🏁 CHECKOUT RESULT MODAL (Phase 4) */}
+      {showCheckoutModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-background/90 backdrop-blur-md">
+          <div className="w-full max-w-md rounded-2xl border-2 border-secondary/30 bg-card p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-display font-bold text-foreground">Resultados de Visita</h3>
+                  <p className="text-xs text-muted-foreground">Registre el impacto comercial</p>
+                </div>
+              </div>
+              <button onClick={() => setShowCheckoutModal(false)} className="text-muted-foreground hover:text-foreground p-2">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-5">
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Interés detectado</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(["Bajo", "Medio", "Alto"] as const).map((level) => (
+                    <button
+                      key={level}
+                      onClick={() => setInterest(level)}
+                      className={cn(
+                        "py-3 rounded-xl border-2 text-xs font-bold transition-all",
+                        interest === level 
+                          ? "border-emerald-500 bg-emerald-500/10 text-emerald-500" 
+                          : "border-border bg-muted/5 text-muted-foreground hover:border-muted-foreground/30"
+                      )}
+                    >
+                      {level}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Siguiente Acción</label>
+                <select 
+                  value={nextAction}
+                  onChange={(e) => setNextAction(e.target.value)}
+                  className="w-full bg-muted/20 border border-border rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-secondary outline-none appearance-none"
+                >
+                  <option value="" disabled>Seleccione próximo paso...</option>
+                  {nextActionOptions.map(opt => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Observaciones Finales</label>
+                <textarea 
+                  value={resultNotes}
+                  onChange={(e) => setResultNotes(e.target.value)}
+                  placeholder="Detalles sobre lo conversado, acuerdos o necesidades detectadas..."
+                  className="w-full bg-muted/20 border border-border rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-secondary outline-none min-h-[100px] resize-none"
+                />
+              </div>
+
+              <button 
+                onClick={confirmCheckOut}
+                disabled={submitting || !nextAction || !resultNotes}
+                className="w-full py-4 rounded-xl bg-emerald-500 text-white font-bold text-sm shadow-lg shadow-emerald-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <CheckCircle2 className="h-5 w-5" />}
+                CONFIRMAR Y FINALIZAR VISITA
+              </button>
             </div>
           </div>
         </div>

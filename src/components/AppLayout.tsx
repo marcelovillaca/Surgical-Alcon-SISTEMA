@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Package, Users, ClipboardList, MapPin, Truck,
   TrendingUp, Settings, ChevronLeft, ChevronRight, LogOut, Shield,
   FileDown, FileText, BarChart2, PieChart, ClipboardCheck, UserCog,
-  BarChart3, Menu, X, Home, Warehouse, Activity, Clock,
+  BarChart3, Menu, X, Home, Warehouse, Activity, Clock, Moon, Sun,
 } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { cn } from "@/lib/utils";
@@ -93,6 +93,9 @@ const WARN_BEFORE_MS   =  5 * 60 * 1000; // warn 5 min before
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed]       = useState(false);
   const [mobileOpen, setMobileOpen]     = useState(false);
+  const [theme, setTheme]               = useState<"light" | "dark">(
+    (localStorage.getItem("theme") as "light" | "dark") || "light"
+  );
   const [idleWarning, setIdleWarning]   = useState(false);
   const [countdown, setCountdown]       = useState(WARN_BEFORE_MS / 1000);
   const idleTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -150,6 +153,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }, [clearTimers, handleAutoLogout]);
 
   useEffect(() => {
+    if (theme === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+    localStorage.setItem("theme", theme);
+  }, [theme]);
+
+  useEffect(() => {
     if (!user) return;
     const events = ["mousemove", "mousedown", "keypress", "scroll", "touchstart", "click"] as const;
     const reset = () => resetIdleTimer();
@@ -202,7 +214,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   // Bottom nav items for mobile (most used)
-  const bottomNavItems = filteredGroups.flatMap(g => g.items).slice(0, 4);
+  const bottomNavItems = role === "visitador" 
+    ? [
+        { to: "/", icon: Home, label: "Inicio" },
+        { to: "/visitas", icon: MapPin, label: "Visitas" },
+        { to: "/crm", icon: Users, label: "Clientes" },
+        { to: "/pedidos", icon: ClipboardList, label: "Pedidos" }
+      ]
+    : filteredGroups.flatMap(g => g.items).slice(0, 4);
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full overflow-hidden">
@@ -438,22 +457,32 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </h2>
           </div>
 
-          {/* Right: user info */}
-          <NavLink to="/perfil" className="flex items-center gap-2 md:gap-4 hover:bg-muted/50 p-1 rounded-xl transition-all">
-            <div className="hidden sm:block text-right">
-              <p className="text-sm font-medium text-foreground leading-tight">
-                {user?.user_metadata?.full_name?.split(" ")[0] || "Usuario"}
-              </p>
-              <p className="text-[10px] text-muted-foreground">
-                {role ? roleLabels[role] || role : ""}
-              </p>
-            </div>
-            <div className="h-8 w-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
-              <span className="text-xs font-bold text-primary">
-                {user?.user_metadata?.full_name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || "U"}
-              </span>
-            </div>
-          </NavLink>
+          {/* Right: theme toggle + user info */}
+          <div className="flex items-center gap-2 md:gap-4">
+            <button
+              onClick={() => setTheme(theme === "light" ? "dark" : "light")}
+              className="p-2 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground transition-all border border-border/40"
+              title={theme === "light" ? "Activar Modo Oscuro" : "Activar Modo Claro"}
+            >
+              {theme === "light" ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+            </button>
+
+            <NavLink to="/perfil" className="flex items-center gap-2 md:gap-4 hover:bg-muted/50 p-1 rounded-xl transition-all">
+              <div className="hidden sm:block text-right">
+                <p className="text-sm font-medium text-foreground leading-tight">
+                  {user?.user_metadata?.full_name?.split(" ")[0] || "Usuario"}
+                </p>
+                <p className="text-[10px] text-muted-foreground">
+                  {role ? roleLabels[role] || role : ""}
+                </p>
+              </div>
+              <div className="h-8 w-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                <span className="text-xs font-bold text-primary">
+                  {user?.user_metadata?.full_name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || "U"}
+                </span>
+              </div>
+            </NavLink>
+          </div>
         </header>
 
         {/* Page Content - Using body scroll for maximum browser compatibility */}
