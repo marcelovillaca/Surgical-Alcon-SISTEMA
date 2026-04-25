@@ -168,9 +168,11 @@ export default function CRM() {
     fetchData();
   };
 
-  const handleUpdateClient = async () => {
+   const handleUpdateClient = async () => {
     if (!editingClient || !newFirstName || !user) return;
     const fullName = `${newFirstName} ${newLastName}`.trim();
+    
+    // 1. Update basic client data
     const { error } = await supabase.from("clients").update({
       name: fullName,
       first_name: newFirstName,
@@ -187,6 +189,29 @@ export default function CRM() {
     } as any).eq("id", editingClient.id);
     
     if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
+
+    // 2. Handle institution link update
+    if (linkInstId) {
+      // Check if this institution is already linked
+      const alreadyLinked = editingClient.institutions.find(i => i.id === linkInstId);
+      
+      if (!alreadyLinked) {
+        // Remove primary flag from others for this client
+        await supabase.from("client_institutions").update({ is_primary: false }).eq("client_id", editingClient.id);
+        
+        // Insert new link as primary
+        await supabase.from("client_institutions").insert({
+          client_id: editingClient.id,
+          institution_id: linkInstId,
+          is_primary: true
+        });
+      } else if (!alreadyLinked.is_primary) {
+        // Set existing link as primary
+        await supabase.from("client_institutions").update({ is_primary: false }).eq("client_id", editingClient.id);
+        await supabase.from("client_institutions").update({ is_primary: true }).eq("client_id", editingClient.id).eq("institution_id", linkInstId);
+      }
+    }
+
     toast({ title: "✅ Cliente actualizado" });
     setEditingClient(null);
     resetForm();
@@ -209,7 +234,7 @@ export default function CRM() {
     }
   };
 
-  const startEdit = (c: Client) => {
+   const startEdit = (c: Client) => {
     setEditingClient(c);
     setNewFirstName(c.first_name || "");
     setNewLastName(c.last_name || "");
@@ -222,12 +247,18 @@ export default function CRM() {
     setNewFreq(c.visit_frequency || "mensual");
     setNewEmail(c.email || "");
     setNewPhone(c.phone || "");
+    
+    // Set current primary institution
+    const primary = c.institutions.find(i => i.is_primary);
+    if (primary) setLinkInstId(primary.id);
+    else setLinkInstId("");
   };
 
   const resetForm = () => {
     setNewFirstName(""); setNewLastName(""); setNewCod("");
     setNewContact(""); setNewCity(""); setNewAddress("");
     setNewEmail(""); setNewPhone("");
+    setLinkInstId("");
     setNewSegment("check_in"); setNewPricing("D"); setNewFreq("mensual");
   };
 
