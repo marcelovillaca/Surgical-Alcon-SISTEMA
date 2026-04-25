@@ -58,7 +58,6 @@ export default function ConoftaSettings() {
     const { data, error } = await supabase
       .from('institutions')
       .select('*')
-      .eq('market_type', 'CONOFTA')
       .order('name');
     
     if (error) {
@@ -114,9 +113,7 @@ export default function ConoftaSettings() {
     }
     setIsSaving(true);
     const { error } = await supabase.from('institutions').insert([{
-      ...newSede,
-      market_type: 'CONOFTA',
-      active: true
+      ...newSede
     }]);
     if (error) toast.error("Error al guardar sede: " + error.message);
     else {
