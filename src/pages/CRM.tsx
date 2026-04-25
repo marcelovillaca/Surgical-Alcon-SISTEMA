@@ -1,3 +1,5 @@
+import { useState, useEffect, useMemo } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { 
   Users, Search, Plus, Building, Link2, X, Upload, FileSpreadsheet, 
   Loader2, ShoppingCart, Activity, Trash2, LayoutGrid, List, 
@@ -50,6 +52,7 @@ const freqLabels: Record<string, string> = {
 
 export default function CRM() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const { isGerente } = useUserRole();
   const { toast } = useToast();
