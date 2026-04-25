@@ -42,19 +42,23 @@ export function useConoftaData(filters: ConoftaFilters) {
     const [surgeriesRaw, setSurgeriesRaw] = useState<any[]>([]);
     const [productCostsRaw, setProductCostsRaw] = useState<any[]>([]);
     const [equipmentRaw, setEquipmentRaw] = useState<any[]>([]);
+    const [revenueConfigRaw, setRevenueConfigRaw] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
     const fetchAllData = async () => {
         setLoading(true);
         try {
-            const [t, e, surg, prod, eq] = await Promise.all([
+            const [t, e, surg, prod, eq, rev] = await Promise.all([
                 supabase.from("conofta_targets").select("*"),
                 supabase.from("conofta_expenses").select("*"),
                 supabase.from("conofta_surgeries" as any).select("*"),
                 supabase.from("conofta_product_costs" as any).select("*"),
-                supabase.from("conofta_equipment_investments" as any).select("*")
+                supabase.from("conofta_equipment_investments" as any).select("*"),
+                supabase.from("conofta_revenue_config" as any).select("*")
             ]);
-            setTargetsRaw(t.data || []); setExpensesRaw(e.data || []); setSurgeriesRaw(surg.data || []); setProductCostsRaw(prod.data || []); setEquipmentRaw(eq.data || []);
+            setTargetsRaw(t.data || []); setExpensesRaw(e.data || []); setSurgeriesRaw(surg.data || []);
+            setProductCostsRaw(prod.data || []); setEquipmentRaw(eq.data || []);
+            setRevenueConfigRaw(rev.data || []);
         } finally { setLoading(false); }
     };
 
@@ -130,6 +134,25 @@ export function useConoftaData(filters: ConoftaFilters) {
         const yearTargets = targetsRaw.filter(t => t.anio === cYear);
 
         const getRevPerSurgery = (suc?: string, type?: string) => {
+            // 1. PRIORITY: Check admin-configured revenue (conofta_revenue_config)
+            const revConfigs = revenueConfigRaw.filter(r => r.anio === cYear);
+            if (revConfigs.length > 0) {
+                // Try exact match: branch + surgery type
+                const exactMatch = revConfigs.find(r =>
+                    (norm(r.tipo_cirugia) === norm(type || 'Catarata')) &&
+                    (!r.sucursal || !suc || suc === 'Todas' || norm(r.sucursal) === norm(suc))
+                );
+                if (exactMatch) return Number(exactMatch.ingreso_por_cirugia || 0);
+
+                // Fallback within config: any surgery type match
+                const typeMatch = revConfigs.find(r => norm(r.tipo_cirugia) === norm(type || 'Catarata'));
+                if (typeMatch) return Number(typeMatch.ingreso_por_cirugia || 0);
+
+                // Last resort within config: first available record
+                if (revConfigs[0]) return Number(revConfigs[0].ingreso_por_cirugia || 0);
+            }
+
+            // 2. FALLBACK: Use uploaded targets (revenue_per_surgery)
             const t = yearTargets.find(it => {
                 const sMatch = !suc || suc === "Todas" || norm(it.sucursal) === norm(suc) || !it.sucursal;
                 const tMatch = !type || norm(it.tipo_cirugia) === norm(type) || !it.tipo_cirugia || it.tipo_cirugia === "Catarata";
