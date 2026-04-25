@@ -56,8 +56,12 @@ export default function ConoftaSettings() {
   async function fetchInstitutions() {
     setLoading(true);
     const { data, error } = await supabase.from('conofta_institutions' as any).select('*').eq('active', true).order('name');
-    if (error) toast.error("Error al cargar sedes");
-    else setInstitutions(data || []);
+    if (error) {
+      console.error("Error fetching institutions:", error);
+      toast.error("Error al cargar sedes: " + error.message);
+    } else {
+      setInstitutions(data || []);
+    }
     setLoading(false);
   }
 
