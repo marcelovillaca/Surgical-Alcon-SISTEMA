@@ -43,22 +43,25 @@ export function useConoftaData(filters: ConoftaFilters) {
     const [productCostsRaw, setProductCostsRaw] = useState<any[]>([]);
     const [equipmentRaw, setEquipmentRaw] = useState<any[]>([]);
     const [revenueConfigRaw, setRevenueConfigRaw] = useState<any[]>([]);
+    const [exchangeRatesRaw, setExchangeRatesRaw] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
     const fetchAllData = async () => {
         setLoading(true);
         try {
-            const [t, e, surg, prod, eq, rev] = await Promise.all([
+            const [t, e, surg, prod, eq, rev, rates] = await Promise.all([
                 supabase.from("conofta_targets").select("*"),
                 supabase.from("conofta_expenses").select("*"),
                 supabase.from("conofta_surgeries" as any).select("*"),
                 supabase.from("conofta_product_costs" as any).select("*"),
                 supabase.from("conofta_equipment_investments" as any).select("*"),
-                supabase.from("conofta_revenue_config" as any).select("*")
+                supabase.from("conofta_revenue_config" as any).select("*"),
+                supabase.from("conofta_exchange_rates" as any).select("*").order("fecha_vigencia", { ascending: false })
             ]);
             setTargetsRaw(t.data || []); setExpensesRaw(e.data || []); setSurgeriesRaw(surg.data || []);
             setProductCostsRaw(prod.data || []); setEquipmentRaw(eq.data || []);
             setRevenueConfigRaw(rev.data || []);
+            setExchangeRatesRaw(rates.data || []);
         } finally { setLoading(false); }
     };
 
@@ -67,6 +70,22 @@ export function useConoftaData(filters: ConoftaFilters) {
     const data = useMemo(() => {
         const cYear = parseInt(filters.year);
         const monthNums = filters.months.includes("Todos") ? null : filters.months.map(m => M_ABBR_TO_NUM[m]).filter(Boolean);
+
+        // ── Exchange Rate Helper ───────────────────────────────────────────
+        // Returns the Gs/USD rate applicable for a given year+month.
+        // Uses the most recent rate whose fecha_vigencia <= end of that month.
+        const FALLBACK_RATE = 7000;
+        const getRateForYearMonth = (year: number, month: number): number => {
+            if (!exchangeRatesRaw.length) return FALLBACK_RATE;
+            const endOfMonth = new Date(year, month, 0); // last day of month
+            const sorted = [...exchangeRatesRaw].sort(
+                (a, b) => new Date(b.fecha_vigencia).getTime() - new Date(a.fecha_vigencia).getTime()
+            );
+            const applicable = sorted.find(r => new Date(r.fecha_vigencia) <= endOfMonth);
+            return applicable ? Number(applicable.tasa) : Number(sorted[sorted.length - 1]?.tasa || FALLBACK_RATE);
+        };
+        const currentRate = exchangeRatesRaw.length > 0
+            ? Number(exchangeRatesRaw[0]?.tasa || FALLBACK_RATE) : FALLBACK_RATE;
 
         const j2b: Record<string, string> = {};
         surgeriesRaw.forEach(s => { if (s.jornada_id && s.sucursal && (s.tipo_costo || 'directo') === 'directo') j2b[s.jornada_id] = s.sucursal; });
@@ -162,14 +181,18 @@ export function useConoftaData(filters: ConoftaFilters) {
         };
 
         const monthlyData = Array.from({ length: 12 }, (_, i) => {
-            const m = i + 1; const mSurgeries = surgDetail.filter(s => parseDateParts(s.fecha || s.fecha_cirugia)?.m === m);
+            const m = i + 1;
+            const monthRate = getRateForYearMonth(cYear, m); // Historical rate for this month
+            const mSurgeries = surgDetail.filter(s => parseDateParts(s.fecha || s.fecha_cirugia)?.m === m);
             const mExp = filteredExpenses.filter(e => e.mes === m);
 
             const catSurgeries = mSurgeries.filter(s => norm(s.procedimiento).includes("RETINA") || norm(s.producto_nombre).includes("RETINA"));
             const normalSurgeries = mSurgeries.filter(s => !catSurgeries.includes(s) && (s.tipo_costo || 'directo') === 'directo');
 
-            const revenue = normalSurgeries.length * getRevPerSurgery(filters.sucursal, "Catarata") +
+            // Revenue in Gs → convert to USD using this month's rate
+            const revenueGs = normalSurgeries.length * getRevPerSurgery(filters.sucursal, "Catarata") +
                 catSurgeries.length * getRevPerSurgery(filters.sucursal, "Retina");
+            const revenue = revenueGs / monthRate;
 
             // Calculate journey costs (indirect costs per journey)
             const journeyCosts: Record<string, number> = {};
@@ -225,7 +248,7 @@ export function useConoftaData(filters: ConoftaFilters) {
                 }
             });
 
-            const honorariosSum = mSurgeries.reduce((s, row) => {
+            const honorariosGsSum = mSurgeries.reduce((s, row) => {
                 let h = Number(row.honorarios || 0);
                 if (h === 0) {
                     const doc = norm(row.medico || ""); const prc = norm(row.procedimiento || ""); const b = norm(row.sucursal || "");
@@ -234,34 +257,32 @@ export function useConoftaData(filters: ConoftaFilters) {
                 return s + h;
             }, 0);
 
-            // If a doctor filter is active, we NEVER fallback to aggregate expenses (which would include all doctors)
-            const honorarios = (honorariosSum > 0 || (filters.medico && filters.medico !== "Todos"))
-                ? honorariosSum
+            const honorariosGs = (honorariosGsSum > 0 || (filters.medico && filters.medico !== "Todos"))
+                ? honorariosGsSum
                 : mExp.filter(e => e.categoria.toUpperCase().includes("HONORARIO")).reduce((acc, e) => acc + e.monto, 0);
+            const honorarios = honorariosGs / monthRate; // Convert to USD
+
+            // Convert all operational expenses Gs → USD
+            const rhLocal = mExp.filter(e => {
+                const c = e.categoria.toUpperCase();
+                const isRH = c.includes("RH") || c.includes("SUELDO") || c.includes("PERSONAL") || c.includes("RRHH");
+                const isCentral = ["GLOBAL", "TODAS", "CENTRAL", "ADMIN", "ADMINISTRACION", "ADM", "CONOFTA ADM"].includes(norm(e.sucursal || ""));
+                return isRH && !isCentral;
+            }).reduce((acc, e) => acc + e.monto, 0) / monthRate;
+
+            const rhCentral = mExp.filter(e => {
+                const c = e.categoria.toUpperCase();
+                const isRH = c.includes("RH") || c.includes("SUELDO") || c.includes("PERSONAL") || c.includes("RRHH");
+                const isCentral = ["GLOBAL", "TODAS", "CENTRAL", "ADMIN", "ADMINISTRACION", "ADM", "CONOFTA ADM"].includes(norm(e.sucursal || ""));
+                return isRH && isCentral;
+            }).reduce((acc, e) => acc + e.monto, 0) / monthRate;
 
             const cato = (cat: string) => mExp.filter(e => {
                 const c = e.categoria.toUpperCase();
                 return c.includes(cat) || (cat === "RH" && (c.includes("SUELDO") || c.includes("PERSONAL") || c.includes("RRHH"))) ||
                     (cat === "MARKETING" && (c.includes("PUBLI") || c.includes("PROMO"))) ||
                     (cat === "ADMIN" && (c.includes("GESTION") || c.includes("CONTAB") || c.includes("OFICINA") || c.includes("ADMINISTRATIVO")));
-            }).reduce((acc, e) => acc + e.monto, 0);
-
-            // Separate RH into Local (branch-specific) and Central (from CONOFTA ADM)
-            const rhLocal = mExp.filter(e => {
-                const c = e.categoria.toUpperCase();
-                const isRH = c.includes("RH") || c.includes("SUELDO") || c.includes("PERSONAL") || c.includes("RRHH");
-                const espSuc = norm(e.sucursal || "");
-                const isCentral = ["GLOBAL", "TODAS", "CENTRAL", "ADMIN", "ADMINISTRACION", "ADM", "CONOFTA ADM"].includes(espSuc);
-                return isRH && !isCentral;
-            }).reduce((acc, e) => acc + e.monto, 0);
-
-            const rhCentral = mExp.filter(e => {
-                const c = e.categoria.toUpperCase();
-                const isRH = c.includes("RH") || c.includes("SUELDO") || c.includes("PERSONAL") || c.includes("RRHH");
-                const espSuc = norm(e.sucursal || "");
-                const isCentral = ["GLOBAL", "TODAS", "CENTRAL", "ADMIN", "ADMINISTRACION", "ADM", "CONOFTA ADM"].includes(espSuc);
-                return isRH && isCentral;
-            }).reduce((acc, e) => acc + e.monto, 0);
+            }).reduce((acc, e) => acc + e.monto, 0) / monthRate;
 
             const mkt = cato("MARKETING");
             const adm = cato("ADMIN");
@@ -270,18 +291,18 @@ export function useConoftaData(filters: ConoftaFilters) {
                 return !c.includes("RH") && !c.includes("MARKETING") && !c.includes("HONORARIO") && !c.includes("ADMIN") &&
                     !c.includes("SUELDO") && !c.includes("PERSONAL") && !c.includes("RRHH") && !c.includes("PUBLI") &&
                     !c.includes("PROMO") && !c.includes("GESTION") && !c.includes("CONTAB") && !c.includes("ADMINISTRATIVO");
-            }).reduce((acc, e) => acc + e.monto, 0);
+            }).reduce((acc, e) => acc + e.monto, 0) / monthRate;
 
-            // Sum targets from ALL branches (not global targets without sucursal)
             const globalTarget = yearTargets
-                .filter(t => t.sucursal && (filters.sucursal === "Todas" || norm(t.sucursal) === norm(filters.sucursal))) // Respect branch filter
+                .filter(t => t.sucursal && (filters.sucursal === "Todas" || norm(t.sucursal) === norm(filters.sucursal)))
                 .reduce((acc, t) => acc + Number(t[M_LABEL_TO_COL[M_NUM_TO_ABBR[m]]] || 0), 0);
 
             return {
                 mes: M_NUM_TO_ABBR[m], surgeries: normalSurgeries.length + catSurgeries.length, revenue,
                 costoLentes, costoInsumos, honorarios, rhLocal, rhCentral, marketing: mkt, otros: others + adm,
                 margin: revenue - (costoLentes + costoInsumos + honorarios + rhLocal + rhCentral + mkt + others + adm),
-                targetSurgeries: globalTarget
+                targetSurgeries: globalTarget,
+                exchangeRate: monthRate
             };
         });
 
@@ -335,6 +356,8 @@ export function useConoftaData(filters: ConoftaFilters) {
                 grossMarginPct: totalSums.revenue > 0 ? (totalSums.margin / totalSums.revenue * 100) : 0
             },
             monthly: monthlyData, gauges, summaryGauges,
+            currentRate,
+            exchangeRates: exchangeRatesRaw,
             expensesByCategory: [
                 { name: "Lentes", value: totalSums.costoLentes },
                 { name: "Insumos", value: totalSums.costoInsumos },
@@ -355,7 +378,7 @@ export function useConoftaData(filters: ConoftaFilters) {
             },
             topMedicos: [], topSucursales: []
         };
-    }, [targetsRaw, expensesRaw, surgeriesRaw, productCostsRaw, equipmentRaw, filters]);
+    }, [targetsRaw, expensesRaw, surgeriesRaw, productCostsRaw, equipmentRaw, revenueConfigRaw, exchangeRatesRaw, filters]);
 
-    return { data, loading, fetchAll: fetchAllData };
+    return { data, loading, fetchAll: fetchAllData, currentRate: exchangeRatesRaw[0]?.tasa || 7000 };
 }
