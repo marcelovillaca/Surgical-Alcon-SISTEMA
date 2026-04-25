@@ -94,8 +94,7 @@ export default function CRM() {
   const fetchData = async () => {
     const [{ data: clientsData }, { data: instsData }] = await Promise.all([
       (supabase.from("clients")
-        .select("id, name, first_name, last_name, cod_cliente, contact_name, city, segment, pricing_level, visit_frequency, email, phone, address")
-        .eq("active", true) as any),
+        .select("id, name, first_name, last_name, cod_cliente, contact_name, city, segment, pricing_level, visit_frequency, email, phone, address") as any),
       supabase.from("institutions").select("id, name, type, city"),
     ]);
 
@@ -132,8 +131,6 @@ export default function CRM() {
       address: newAddress || null,
       email: newEmail || null,
       phone: newPhone || null,
-      created_by: user.id,
-      assigned_to: user.id,
     } as any).select().single() as any);
 
     if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
@@ -181,11 +178,11 @@ export default function CRM() {
   };
 
   const handleDeleteClient = async (id: string) => {
-    if (!window.confirm("¿Está seguro de eliminar este cliente? Se mantendrá en el historial pero no aparecerá en las listas activas.")) return;
+    if (!window.confirm("¿Está seguro de eliminar este cliente?")) return;
     
     const { error } = await supabase
       .from("clients")
-      .update({ active: false } as any)
+      .delete()
       .eq("id", id);
 
     if (error) {
@@ -284,9 +281,7 @@ export default function CRM() {
           phone: r.phone,
           segment: r.segment as any,
           pricing_level: r.pricing_level as any,
-          created_by: user.id,
           assigned_to: user.id,
-          active: true
         } as any).select().single();
 
         if (error) {

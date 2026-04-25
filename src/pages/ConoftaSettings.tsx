@@ -58,7 +58,6 @@ export default function ConoftaSettings() {
     const { data, error } = await supabase
       .from('institutions')
       .select('*')
-      .eq('active', true)
       .eq('market_type', 'CONOFTA')
       .order('name');
     
@@ -75,7 +74,6 @@ export default function ConoftaSettings() {
     const { data, error } = await supabase
       .from('conofta_surgeons' as any)
       .select('*, institutions(name)')
-      .eq('active', true)
       .order('name');
     if (!error) setSurgeons(data || []);
   }
