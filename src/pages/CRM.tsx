@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useToast } from "@/hooks/use-toast";
 import * as XLSX from "xlsx";
-import { parseClientsSheet } from "@/lib/excel-parsers";
+import { parseClientsSheet, downloadTemplate } from "@/lib/excel-parsers";
 
 type Client = {
   id: string;
@@ -268,16 +268,46 @@ export default function CRM() {
       
       if (errors.length > 0) throw new Error(errors.join(", "));
       
-      const insertRows = rows.map(r => ({
-        ...r,
-        created_by: user.id,
-        assigned_to: user.id
-      }));
+      // Fetch institutions to map names
+      const { data: allInsts } = await supabase.from("institutions").select("id, name");
 
-      const { error } = await supabase.from("clients").insert(insertRows as any);
-      if (error) throw error;
+      for (const r of rows) {
+        const { data: newClient, error } = await supabase.from("clients").insert({
+          name: r.name,
+          first_name: r.first_name,
+          last_name: r.last_name,
+          cod_cliente: r.cod_cliente || null,
+          contact_name: r.contact_name,
+          city: r.city,
+          address: r.address,
+          email: r.email,
+          phone: r.phone,
+          segment: r.segment as any,
+          pricing_level: r.pricing_level as any,
+          created_by: user.id,
+          assigned_to: user.id,
+          active: true
+        } as any).select().single();
 
-      toast({ title: "Importación Exitosa", description: `${rows.length} clientes han sido cargados.` });
+        if (error) {
+          console.error("Error creating client", r.name, error);
+          continue;
+        }
+
+        // Link institution if provided
+        if (newClient && r.institution) {
+          const instMatch = allInsts?.find(i => i.name.toLowerCase().trim() === r.institution?.toLowerCase().trim());
+          if (instMatch) {
+            await supabase.from("client_institutions").insert({
+              client_id: newClient.id,
+              institution_id: instMatch.id,
+              is_primary: true
+            });
+          }
+        }
+      }
+
+      toast({ title: "Importación Exitosa", description: `${rows.length} clientes procesados con sus vínculos.` });
       setShowBulkImport(false);
       fetchData();
     } catch (err: any) {
@@ -743,7 +773,7 @@ export default function CRM() {
               >
                 Editar
               </button>
-              <button
+               <button
                 onClick={() => setLinkClientId(c.id)}
                 className="flex-1 h-11 flex items-center justify-center gap-2 text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors"
               >
@@ -756,56 +786,56 @@ export default function CRM() {
 
       {/* Bulk Import Modal */}
       {showBulkImport && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border-2 border-primary/20 bg-card p-6 shadow-2xl animate-scale-in">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="h-10 w-10 rounded-xl gradient-emerald flex items-center justify-center">
-                <FileSpreadsheet className="h-5 w-5 text-secondary-foreground" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/95 backdrop-blur-md">
+          <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-card p-8 shadow-2xl animate-scale-in relative overflow-hidden">
+            <div className="absolute -top-24 -right-24 h-48 w-48 bg-primary/10 rounded-full blur-3xl" />
+            
+            <div className="flex flex-col items-center text-center space-y-6 relative z-10">
+              <div className="h-16 w-16 rounded-2xl gradient-gold flex items-center justify-center shadow-xl shadow-primary/20 rotate-3">
+                <FileSpreadsheet className="h-8 w-8 text-primary-foreground" />
               </div>
+              
               <div>
-                <h3 className="text-base font-display font-bold text-foreground">Importación Masiva</h3>
-                <p className="text-xs text-muted-foreground">Cargue su base de clientes desde un Excel.</p>
+                <h3 className="text-2xl font-display font-bold text-foreground tracking-tight">Carga Masiva de Clientes</h3>
+                <p className="text-sm text-muted-foreground mt-2 max-w-sm mx-auto">
+                  Sube tu archivo Excel para importar múltiples clientes y vincularlos automáticamente a sus instituciones.
+                </p>
               </div>
-            </div>
 
-            <div className="space-y-4">
-              <div className="rounded-xl border-2 border-dashed border-border p-8 text-center hover:border-primary/50 transition-colors relative cursor-pointer group">
-                <input 
-                  type="file" 
-                  accept=".xlsx, .xls" 
-                  onChange={handleBulkImport}
-                  className="absolute inset-0 opacity-0 cursor-pointer"
-                  disabled={importLoading}
-                />
-                <div className="space-y-2">
-                  <div className="mx-auto h-12 w-12 rounded-full bg-muted flex items-center justify-center group-hover:bg-primary/10 transition-colors">
-                    {importLoading ? <Loader2 className="h-6 w-6 animate-spin text-primary" /> : <Upload className="h-6 w-6 text-muted-foreground group-hover:text-primary" />}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full pt-4">
+                <button 
+                  onClick={() => downloadTemplate('clientes')}
+                  className="flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border border-border bg-muted/30 hover:bg-muted/50 transition-all hover:scale-[1.02] group"
+                >
+                  <FileSpreadsheet className="h-6 w-6 text-emerald-500 group-hover:scale-110 transition-transform" />
+                  <div className="text-center">
+                    <span className="block text-sm font-bold">1. Descargar Formato</span>
+                    <span className="text-[10px] text-muted-foreground uppercase font-black">Excel .xlsx</span>
                   </div>
-                  <p className="text-sm font-medium text-foreground">
-                    {importLoading ? "Procesando..." : "Haga clic o arrastre su archivo .xlsx"}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Tamaño máximo: 10MB</p>
-                </div>
+                </button>
+
+                <label className="flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border-2 border-dashed border-primary/30 bg-primary/5 hover:border-primary/50 transition-all hover:scale-[1.02] cursor-pointer group relative">
+                  {importLoading ? (
+                    <Loader2 className="h-6 w-6 text-primary animate-spin" />
+                  ) : (
+                    <Upload className="h-6 w-6 text-primary group-hover:-translate-y-1 transition-transform" />
+                  )}
+                  <div className="text-center">
+                    <span className="block text-sm font-bold">2. Subir Archivo</span>
+                    <span className="text-[10px] text-muted-foreground uppercase font-black">Click para buscar</span>
+                  </div>
+                  <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleBulkImport} disabled={importLoading} />
+                </label>
               </div>
 
-              <div className="rounded-xl bg-muted/50 p-4 border border-border">
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">Columnas requeridas</p>
-                <div className="flex flex-wrap gap-1">
-                  {["NOMBRE", "CONTACTO", "CIUDAD", "DIRECCION", "SEGMENTO", "NIVEL PRECIO"].map(c => (
-                    <span key={c} className="px-1.5 py-0.5 rounded bg-background border border-border text-[9px] font-mono">{c}</span>
-                  ))}
-                </div>
+              <div className="w-full pt-4">
+                <button 
+                  onClick={() => setShowBulkImport(false)} 
+                  className="w-full py-3 rounded-xl border border-border text-sm font-semibold text-muted-foreground hover:bg-muted transition-colors"
+                >
+                  Cerrar Ventana
+                </button>
               </div>
-            </div>
-
-            <div className="flex justify-end mt-6">
-              <button 
-                onClick={() => setShowBulkImport(false)}
-                className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-                disabled={importLoading}
-              >
-                Cerrar
-              </button>
             </div>
           </div>
         </div>

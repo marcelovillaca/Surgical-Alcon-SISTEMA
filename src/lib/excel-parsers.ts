@@ -21,6 +21,7 @@ export type ClientRow = {
   segment?: string; 
   pricing_level?: string; 
   market_type?: string; 
+  institution?: string; // New field for bulk linkage
 };
 export type StockRow = { codigo_producto: string; producto: string; lote_sn: string; fecha_vencimiento: string; };
 export interface ConoftaSurgeryRow {
@@ -439,10 +440,11 @@ export function parseClientsSheet(sheet: XLSX.WorkSheet): { rows: ClientRow[]; e
       phone: String(findVal(r, ["TELEFONO", "PHONE", "CELULAR"]) || ""),
       segment: String(findVal(r, ["SEGMENTO", "SEGMENT", "CATEGORIA"]) || "check_in").toLowerCase().replace("-", "_"),
       pricing_level: String(findVal(r, ["NIVEL PRECIO", "PRICING", "NIVEL"]) || "D").toUpperCase(),
-      market_type: String(findVal(r, ["MERCADO", "MARKET", "TIPO MERCADO"]) || "Privado")
+      market_type: String(findVal(r, ["MERCADO", "MARKET", "TIPO MERCADO"]) || "Privado"),
+      institution: String(findVal(r, ["INSTITUCION", "CLINICA", "HOSPITAL", "SEDE"]) || "").trim()
     });
   });
-  return { rows, errors: [], skipped };
+  return { rows, errors: [] };
 }
 export function parseStockSheet(sheet?: XLSX.WorkSheet): { rows: StockRow[]; errors: string[] } {
   if (!sheet) return { rows: [], errors: [] };
@@ -503,7 +505,8 @@ export function downloadTemplate(type: string) {
       TELEFONO: "0981 123 456",
       SEGMENTO: "Grow", // Check-in, Grow, Partner, Protect
       "NIVEL PRECIO": "A", // A, B, C, D
-      MERCADO: "Privado"
+      MERCADO: "Privado",
+      INSTITUCION: "CLINICA DE OJOS ASUNCION"
     }];
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), "Clientes");
   }
