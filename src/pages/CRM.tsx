@@ -589,15 +589,20 @@ export default function CRM() {
       )}
 
       {/* Segmentation Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {segmentCounts.map((s) => (
-          <div key={s.label} className="rounded-xl border border-border bg-card p-4 card-hover">
-            <div className="flex items-center gap-2 mb-2">
-              <span className={cn("h-3 w-3 rounded-full", s.color)} />
-              <p className="text-sm font-medium text-foreground">{s.label}</p>
+          <div key={s.label} className="rounded-xl border border-border bg-card p-5 shadow-sm hover:shadow-md transition-all flex items-center gap-4 group">
+            <div className={cn(
+              "h-12 w-12 rounded-full flex items-center justify-center shrink-0 transition-transform group-hover:scale-110", 
+              s.color.replace("bg-", "bg-opacity-10 text-").replace("-500", "-600"), 
+              s.color
+            )}>
+              <Users className="h-6 w-6" />
             </div>
-            <p className="text-2xl font-display font-bold text-foreground">{s.count}</p>
-            <p className="text-xs text-muted-foreground">clientes</p>
+            <div>
+              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-0.5">{s.label}s</p>
+              <p className="text-2xl font-display font-black text-foreground tracking-tight">{s.count}</p>
+            </div>
           </div>
         ))}
       </div>
@@ -820,14 +825,14 @@ export default function CRM() {
             <div className="overflow-x-auto rounded-xl border border-border bg-card">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-border text-left">
-                    <th className="px-4 py-3 font-medium text-muted-foreground">Cód. Cliente</th>
-                    <th className="px-4 py-3 font-medium text-muted-foreground">Cliente</th>
-                    <th className="px-4 py-3 font-medium text-muted-foreground">Instituciones</th>
-                    <th className="px-4 py-3 font-medium text-muted-foreground">Segmento</th>
-                    <th className="px-4 py-3 font-medium text-muted-foreground text-center">Nivel</th>
-                    <th className="px-4 py-3 font-medium text-muted-foreground">Volume</th>
-                    <th className="px-4 py-3 font-medium text-muted-foreground text-center">Acciones</th>
+                  <tr className="border-b border-border text-left bg-muted/50">
+                    <th className="px-4 py-3 text-[10px] font-black text-muted-foreground uppercase tracking-widest">Cód. Cliente</th>
+                    <th className="px-4 py-3 text-[10px] font-black text-muted-foreground uppercase tracking-widest">Cliente</th>
+                    <th className="px-4 py-3 text-[10px] font-black text-muted-foreground uppercase tracking-widest">Instituciones</th>
+                    <th className="px-4 py-3 text-[10px] font-black text-muted-foreground uppercase tracking-widest">Segmento</th>
+                    <th className="px-4 py-3 text-[10px] font-black text-muted-foreground uppercase tracking-widest text-center">Nivel</th>
+                    <th className="px-4 py-3 text-[10px] font-black text-muted-foreground uppercase tracking-widest">Volume</th>
+                    <th className="px-4 py-3 text-[10px] font-black text-muted-foreground uppercase tracking-widest text-center">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>

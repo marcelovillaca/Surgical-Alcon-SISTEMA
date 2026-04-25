@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Package, Users, ClipboardList, MapPin, Truck,
   TrendingUp, Settings, ChevronLeft, ChevronRight, LogOut, Shield,
   FileDown, FileText, BarChart2, PieChart, ClipboardCheck, UserCog,
-  BarChart3, Menu, X, Home, Warehouse, Activity, Clock, Moon, Sun,
+  BarChart3, Menu, X, Home, Warehouse, Activity, Clock, Moon, Sun, Eye,
 } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { cn } from "@/lib/utils";
@@ -231,18 +231,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="flex h-16 items-center justify-between border-b border-border px-4 shrink-0">
           {!collapsed && (
             <div className="flex items-center gap-2.5 animate-slide-in">
-              <div className="h-8 w-8 flex items-center justify-center shrink-0">
-                <img src="/logo.png" alt="S" className="w-full h-full object-contain" />
+              <div className="h-9 w-9 rounded-xl bg-primary/20 flex items-center justify-center shrink-0 border border-primary/30 shadow-sm shadow-primary/20">
+                <Eye className="h-5 w-5 text-primary" />
               </div>
-              <div>
-                <h1 className="text-sm font-display font-bold text-foreground tracking-tight">Surgical</h1>
-                <p className="text-[10px] text-muted-foreground">PORTAL <span className="bg-muted rounded px-1 py-0.5 text-[8px]">v1.0</span></p>
+              <div className="flex flex-col">
+                <span className="text-sm font-display font-black text-foreground tracking-tight leading-none uppercase">Surgical <span className="text-primary">Alcon</span></span>
+                <span className="text-[9px] text-muted-foreground font-black tracking-[0.1em] mt-1 opacity-70">CONOFTA PLATFORM</span>
               </div>
             </div>
           )}
           {collapsed && (
-            <div className="mx-auto h-8 w-8 flex items-center justify-center">
-              <img src="/logo.png" alt="S" className="w-full h-full object-contain" />
+            <div className="mx-auto h-8 w-8 rounded-lg bg-primary/20 flex items-center justify-center border border-primary/30">
+              <Eye className="h-4 w-4 text-primary" />
             </div>
           )}
           {/* Mobile close button */}
