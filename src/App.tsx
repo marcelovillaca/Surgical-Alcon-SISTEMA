@@ -41,7 +41,7 @@ const queryClient = new QueryClient();
 
 // ─── Loading Component ───
 const PageLoader = () => (
-  <div className="min-h-screen bg-[#111111] flex items-center justify-center">
+  <div className="min-h-screen bg-background flex items-center justify-center">
     <div className="text-center">
       <Loader2 className="h-10 w-10 animate-spin text-primary mx-auto mb-4" />
       <p className="text-sm text-muted-foreground animate-pulse">Iniciando aplicación...</p>

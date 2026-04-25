@@ -7,11 +7,12 @@ import { formatUSD } from "@/lib/formatters";
 
 const tooltipStyle = {
   contentStyle: {
-    backgroundColor: "hsl(0, 0%, 12%)",
-    border: "1px solid hsl(0, 0%, 18%)",
-    borderRadius: "8px",
+    backgroundColor: "hsl(var(--card))",
+    border: "1px solid hsl(var(--border))",
+    borderRadius: "12px",
     fontSize: "12px",
-    color: "hsl(0, 0%, 95%)",
+    color: "hsl(var(--card-foreground))",
+    boxShadow: "var(--shadow-lg)",
   },
 };
 
@@ -43,12 +44,12 @@ export function SalesBarChart({ showCost = true, data }: { showCost?: boolean; d
       </h3>
       <ResponsiveContainer width="100%" height={260}>
         <BarChart data={data} barGap={4}>
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(0, 0%, 18%)" />
-          <XAxis dataKey="mes" tick={{ fill: "hsl(0, 0%, 55%)", fontSize: 12 }} axisLine={false} />
-          <YAxis tickFormatter={formatUSD} tick={{ fill: "hsl(0, 0%, 55%)", fontSize: 11 }} axisLine={false} />
-          <Tooltip formatter={(v: number) => formatUSD(v)} {...tooltipStyle} />
-          <Bar dataKey="ventas" name="Ventas" fill="hsl(45, 90%, 55%)" radius={[4, 4, 0, 0]} />
-          {showCost && <Bar dataKey="costo" name="Costo" fill="hsl(0, 0%, 30%)" radius={[4, 4, 0, 0]} />}
+          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+          <XAxis dataKey="mes" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} axisLine={false} tickLine={false} />
+          <YAxis tickFormatter={formatUSD} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} axisLine={false} tickLine={false} />
+          <Tooltip formatter={(v: number) => formatUSD(v)} {...tooltipStyle} cursor={{ fill: 'hsl(var(--muted) / 0.3)' }} />
+          <Bar dataKey="ventas" name="Ventas" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+          {showCost && <Bar dataKey="costo" name="Costo" fill="hsl(var(--muted))" radius={[4, 4, 0, 0]} />}
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -100,11 +101,11 @@ export function TopProductMarginList({ data }: { data: TopProductMarginData[] })
   const maxMargin = Math.max(...data.map(d => d.margin), 1);
   const MEDAL = ['🥇', '🥈', '🥉', '4', '5'];
   const COLORS = [
-    'hsl(45,90%,55%)',
-    'hsl(160,60%,45%)',
-    'hsl(197,100%,44%)',
-    'hsl(280,60%,55%)',
-    'hsl(20,80%,55%)',
+    'hsl(var(--chart-1))',
+    'hsl(var(--chart-2))',
+    'hsl(var(--chart-3))',
+    'hsl(var(--chart-4))',
+    'hsl(var(--chart-5))',
   ];
   return (
     <div className="rounded-xl border border-border bg-card p-5">

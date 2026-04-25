@@ -262,7 +262,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               className={cn(
                 "flex-1 py-2.5 text-[10px] font-bold rounded-xl transition-all",
                 activeModule === "alcon"
-                  ? "bg-primary text-secondary-foreground shadow-lg shadow-primary/20"
+                  ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
                   : "bg-muted text-muted-foreground hover:bg-muted/80"
               )}
             >ALCON</button>
@@ -271,7 +271,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               className={cn(
                 "flex-1 py-2.5 text-[10px] font-bold rounded-xl transition-all",
                 activeModule === "conofta"
-                  ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20"
+                  ? "bg-secondary text-secondary-foreground shadow-lg shadow-secondary/20"
                   : "bg-muted text-muted-foreground hover:bg-muted/80"
               )}
             >CONOFTA</button>
@@ -307,8 +307,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                         cn(
                           "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 relative overflow-hidden group",
                           isActive
-                            ? (activeModule === "conofta" ? "bg-blue-600/10 text-blue-400" : "bg-sidebar-accent text-primary")
-                            : "text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
+                            ? (activeModule === "conofta" ? "bg-secondary/10 text-secondary" : "bg-primary/10 text-primary")
+                            : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                         )
                       }
                     >
@@ -333,14 +333,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* User + Controls (Fixed at bottom) */}
       <div className="border-t border-border p-3 space-y-2 shrink-0 bg-sidebar">
         {!collapsed && (
-          <NavLink to="/perfil" className="flex items-center gap-2.5 px-2 mb-2 hover:bg-muted/50 rounded-xl transition-all">
+          <NavLink to="/perfil" className="flex items-center gap-2.5 px-2 mb-2 hover:bg-sidebar-accent rounded-xl transition-all border border-transparent hover:border-sidebar-border">
             <div className="h-8 w-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
               <span className="text-xs font-bold text-primary">
                 {user?.user_metadata?.full_name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || "U"}
               </span>
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-semibold text-foreground truncate">{user?.user_metadata?.full_name || "Usuario"}</p>
+              <p className="text-xs font-semibold text-sidebar-foreground truncate">{user?.user_metadata?.full_name || "Usuario"}</p>
               <p className="text-[10px] text-primary font-medium">{role ? roleLabels[role] || role : "Sin rol"}</p>
             </div>
           </NavLink>

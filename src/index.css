@@ -23,14 +23,14 @@ html, body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background-color: rgba(255, 255, 255, 0.15) !important;
+  background-color: hsl(var(--muted-foreground) / 0.2) !important;
   border-radius: 20px !important;
   border: 2px solid transparent !important;
   background-clip: content-box !important;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(255, 255, 255, 0.25) !important;
+  background-color: hsl(var(--muted-foreground) / 0.4) !important;
 }
 
 /* Sidebar Specific */
@@ -221,27 +221,35 @@ html, body {
 @layer utilities {
   /* ── Glow Effects ── */
   .gold-glow {
-    box-shadow: 0 0 16px hsl(45 90% 55% / 0.2), 0 0 48px hsl(45 90% 55% / 0.08);
+    @apply shadow-lg;
+    box-shadow: 0 4px 20px -2px hsl(var(--primary) / 0.15), 0 2px 8px -2px hsl(var(--primary) / 0.1);
   }
-  .emerald-glow {
-    box-shadow: 0 0 16px hsl(197 100% 44% / 0.2), 0 0 48px hsl(197 100% 44% / 0.08);
-  }
-  .green-glow {
-    box-shadow: 0 0 16px hsl(160 65% 40% / 0.2), 0 0 48px hsl(160 65% 40% / 0.08);
+  .dark .gold-glow {
+    box-shadow: 0 0 16px hsl(var(--primary) / 0.2), 0 0 48px hsl(var(--primary) / 0.08);
   }
 
-  /* ── Glass Surfaces (DMRI style) ── */
+  .emerald-glow {
+    @apply shadow-lg;
+    box-shadow: 0 4px 20px -2px hsl(var(--secondary) / 0.15), 0 2px 8px -2px hsl(var(--secondary) / 0.1);
+  }
+  .dark .emerald-glow {
+    box-shadow: 0 0 16px hsl(var(--secondary) / 0.2), 0 0 48px hsl(var(--secondary) / 0.08);
+  }
+
+  /* ── Glass Surfaces ── */
   .glass-surface {
+    @apply bg-card/80 backdrop-blur-xl border border-border/50;
+  }
+  .dark .glass-surface {
     background: hsl(220 25% 9% / 0.85);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
     border: 1px solid hsl(220 20% 20% / 0.5);
   }
 
   .glass-card {
+    @apply bg-card/70 backdrop-blur-lg border border-border/40;
+  }
+  .dark .glass-card {
     background: hsl(220 25% 9% / 0.7);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
     border: 1px solid hsl(220 20% 16% / 0.6);
   }
 

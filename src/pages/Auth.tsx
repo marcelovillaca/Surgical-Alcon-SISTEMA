@@ -239,7 +239,7 @@ export default function Auth() {
         )}
 
         {/* Card */}
-        <div className="rounded-2xl border border-border/50 bg-card/80 ring-1 ring-white/5 backdrop-blur-xl shadow-2xl">
+        <div className="rounded-2xl border border-border bg-card shadow-2xl overflow-hidden">
           {/* Tabs — only for login/register */}
           {(mode === "login" || mode === "register") && (
             <div className="flex border-b border-border/50">
@@ -249,7 +249,7 @@ export default function Auth() {
                   "flex-1 flex items-center justify-center gap-2 py-4 text-sm font-bold transition-all",
                   mode === "login"
                     ? "bg-primary/10 text-primary border-b-2 border-primary"
-                    : "text-muted-foreground hover:bg-white/5"
+                    : "text-muted-foreground hover:bg-muted/50"
                 )}
               >
                 <LogIn className="h-4 w-4" /> Entrar
@@ -259,8 +259,8 @@ export default function Auth() {
                 className={cn(
                   "flex-1 flex items-center justify-center gap-2 py-4 text-sm font-bold transition-all",
                   mode === "register"
-                    ? "bg-blue-500/10 text-blue-400 border-b-2 border-blue-500"
-                    : "text-muted-foreground hover:bg-white/5"
+                    ? "bg-secondary/10 text-secondary border-b-2 border-secondary"
+                    : "text-muted-foreground hover:bg-muted/50"
                 )}
               >
                 <KeyRound className="h-4 w-4" /> Primer Acceso
@@ -296,7 +296,7 @@ export default function Auth() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="w-full rounded-xl border border-border bg-background/50 px-4 h-14 pr-14 text-base focus:ring-2 focus:ring-primary outline-none transition-all"
+                      className="w-full rounded-xl border border-border bg-muted/20 px-4 h-14 pr-14 text-base focus:ring-2 focus:ring-primary outline-none transition-all"
                       required
                     />
                     <button type="button" onClick={() => setShowPass(p => !p)}
@@ -313,7 +313,7 @@ export default function Auth() {
                 {error   && <div className="text-sm text-rose-400 bg-rose-500/5 border border-rose-500/20 rounded-xl p-3.5">{error}</div>}
                 {message && <div className="text-sm text-emerald-400 bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-3.5">{message}</div>}
                 <button type="submit" disabled={loading}
-                  className="w-full rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-[0.98] h-14 text-base font-bold text-white transition-all disabled:opacity-50 mt-1 shadow-lg shadow-blue-500/20">
+                  className="w-full rounded-xl bg-primary hover:bg-primary/90 active:scale-[0.98] h-14 text-base font-bold text-primary-foreground transition-all disabled:opacity-50 mt-1 shadow-lg shadow-primary/20">
                   {loading ? <span className="flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Ingresando...</span> : "Entrar"}
                 </button>
               </form>
