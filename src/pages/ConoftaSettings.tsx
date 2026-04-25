@@ -36,7 +36,7 @@ export default function ConoftaSettings() {
   const [editValue, setEditValue] = useState("");
   
   const [newSede, setNewSede] = useState({ name: "", city: "", address: "" });
-  const [newSurgeon, setNewSurgeon] = useState({ name: "", specialty: "Oftalmología", institution_id: "" });
+  const [newSurgeon, setNewSurgeon] = useState({ name: "", specialty: "Oftalmología", conofta_institution_id: "" });
   const [newRevenue, setNewRevenue] = useState({ anio: new Date().getFullYear(), tipo_cirugia: "Catarata", ingreso_por_cirugia: "", sucursal: "", moneda: "USD" });
 
   useEffect(() => {
@@ -56,8 +56,9 @@ export default function ConoftaSettings() {
   async function fetchInstitutions() {
     setLoading(true);
     const { data, error } = await supabase
-      .from('institutions')
+      .from('conofta_institutions')
       .select('*')
+      .eq('active', true)
       .order('name');
     
     if (error) {
@@ -72,7 +73,8 @@ export default function ConoftaSettings() {
   async function fetchSurgeons() {
     const { data, error } = await supabase
       .from('conofta_surgeons' as any)
-      .select('*, institutions(name)')
+      .select('*, conofta_institutions:conofta_institution_id(name)')
+      .eq('is_active', true)
       .order('name');
     if (!error) setSurgeons(data || []);
   }
@@ -112,9 +114,7 @@ export default function ConoftaSettings() {
       return;
     }
     setIsSaving(true);
-    const { error } = await supabase.from('institutions').insert([{
-      ...newSede
-    }]);
+    const { error } = await supabase.from('conofta_institutions').insert([newSede]);
     if (error) toast.error("Error al guardar sede: " + error.message);
     else {
       toast.success("Sede agregada correctamente");
@@ -134,7 +134,7 @@ export default function ConoftaSettings() {
     if (error) toast.error("Error al guardar cirujano: " + error.message);
     else {
       toast.success("Cirujano registrado");
-      setNewSurgeon({ name: "", specialty: "Oftalmología", institution_id: "" });
+      setNewSurgeon({ name: "", specialty: "Oftalmología", conofta_institution_id: "" });
       fetchSurgeons();
     }
     setIsSaving(false);
@@ -142,7 +142,7 @@ export default function ConoftaSettings() {
 
   async function handleDeleteSede(id: string) {
     if (!window.confirm("¿Está seguro de eliminar esta sede?")) return;
-    const { error } = await supabase.from('institutions').update({ active: false }).eq('id', id);
+    const { error } = await supabase.from('conofta_institutions').update({ active: false }).eq('id', id);
     if (error) toast.error("Error al eliminar");
     else {
       toast.success("Sede eliminada");
@@ -331,8 +331,8 @@ export default function ConoftaSettings() {
                   <div className="space-y-2">
                     <Label className="text-[10px] uppercase font-bold text-muted-foreground ml-1">Sede / Hospital Primario</Label>
                     <Select 
-                      value={newSurgeon.institution_id}
-                      onValueChange={(v) => setNewSurgeon({...newSurgeon, institution_id: v})}
+                      value={newSurgeon.conofta_institution_id}
+                      onValueChange={(v) => setNewSurgeon({...newSurgeon, conofta_institution_id: v})}
                     >
                       <SelectTrigger className="h-11 bg-background/50 border-white/5">
                         <SelectValue placeholder="Opcional: Vincular Sede" />
@@ -388,7 +388,7 @@ export default function ConoftaSettings() {
                           </td>
                           <td className="p-4 text-center">
                             <span className="text-[10px] px-2 py-1 rounded bg-muted font-medium text-muted-foreground">
-                              {s.institutions?.name ?? "Sin Sede"}
+                              {s.conofta_institutions?.name ?? "Sin Sede"}
                             </span>
                           </td>
                           <td className="p-4 text-center text-muted-foreground">
