@@ -73,10 +73,11 @@ export default function ConoftaSettings() {
   async function fetchSurgeons() {
     const { data, error } = await supabase
       .from('conofta_surgeons' as any)
-      .select('*, conofta_institutions:conofta_institution_id(name)')
+      .select('id, name, specialty, is_active, cod_cirujano, conofta_institution_id, conofta_institutions:conofta_institution_id(name)')
       .eq('is_active', true)
       .order('name');
-    if (!error) setSurgeons(data || []);
+    if (error) console.error("fetchSurgeons error:", error.message);
+    else setSurgeons(data || []);
   }
 
   async function fetchRevenueConfig() {
