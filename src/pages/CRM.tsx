@@ -4,7 +4,8 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { 
   Users, Search, Plus, Building, Link2, X, Upload, FileSpreadsheet, 
   Loader2, ShoppingCart, Activity, Trash2, LayoutGrid, List, 
-  ChevronRight, MapPin, Stethoscope, Briefcase, Globe
+  ChevronRight, MapPin, Stethoscope, Briefcase, Globe, UserCog,
+  Eye, Check, AlertTriangle, Building2, Star
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
