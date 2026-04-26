@@ -596,23 +596,28 @@ export default function CRM() {
         </div>
       )}
 
-      {/* Segmentation Cards */}
+
+      {/* Segmentation Cards — KPI Anatomy */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {segmentCounts.map((s) => (
-          <div key={s.label} className="rounded-xl border border-border bg-card p-5 shadow-sm hover:shadow-md transition-all flex items-center gap-4 group">
-            <div className={cn(
-              "h-12 w-12 rounded-full flex items-center justify-center shrink-0 transition-transform group-hover:scale-110", 
-              s.color.replace("bg-", "bg-opacity-10 text-").replace("-500", "-600"), 
-              s.color
-            )}>
-              <Users className="h-6 w-6" />
+        {segmentCounts.map((s) => {
+          const iconClass =
+            s.label === "Check-in" ? "icon-info" :
+            s.label === "Grow"     ? "icon-success" :
+            s.label === "Partner"  ? "icon-primary" :
+                                     "icon-warning";
+          return (
+            <div key={s.label} className="rounded-lg border bg-card text-card-foreground shadow-elegant p-4 md:p-5 card-hover flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">{s.label}</p>
+                <p className="font-display text-2xl md:text-3xl font-bold tracking-tight text-foreground">{s.count}</p>
+                <p className="text-[10px] text-muted-foreground mt-1">médicos</p>
+              </div>
+              <div className={cn("grid h-10 w-10 place-items-center rounded-lg shrink-0", iconClass)}>
+                <UserCog className="h-5 w-5" />
+              </div>
             </div>
-            <div>
-              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-0.5">{s.label}s</p>
-              <p className="text-2xl font-display font-black text-foreground tracking-tight">{s.count}</p>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Tab Switcher & Segment Filters */}
