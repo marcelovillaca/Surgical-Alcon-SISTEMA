@@ -395,9 +395,10 @@ export default function CRM() {
     return a.name.localeCompare(b.name);
   });
 
-  const segmentCounts = segmentos.map((s) => ({
-    ...s,
-    count: clients.filter((c) => c.segment === s.label.toLowerCase().replace("-", "_")).length,
+   const segmentCounts = Object.entries(segmentStyles).map(([key, style]) => ({
+    label: style.label,
+    color: style.color,
+    count: clients.filter((c) => c.segment === key).length,
   }));
 
   return (
