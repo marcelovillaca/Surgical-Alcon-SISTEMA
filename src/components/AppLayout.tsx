@@ -235,8 +235,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 <Eye className="h-5 w-5 text-primary" />
               </div>
               <div className="flex flex-col">
-                <span className="text-sm font-display font-black text-white tracking-tight leading-none uppercase">Surgical <span className="text-primary">Alcon</span></span>
-                <span className="text-[9px] text-blue-400/80 font-black tracking-[0.1em] mt-1">CONOFTA PLATFORM</span>
+                <span className="text-sm font-display font-black tracking-tight leading-none uppercase" style={{ color: '#FFFFFF' }}>Surgical <span className="text-primary">Alcon</span></span>
+                <span className="text-[9px] text-blue-400 font-black tracking-[0.1em] mt-1">CONOFTA PLATFORM</span>
               </div>
             </div>
           )}

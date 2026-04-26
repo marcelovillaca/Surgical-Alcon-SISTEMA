@@ -136,7 +136,11 @@ export default function CRM() {
       });
       setClients(enriched);
     }
-    if (instsData) setInstitutions(instsData);
+    if (instsData) {
+      // Robust filter: ensure no CONOFTA institutions appear in CRM even if DB query filter fails
+      const filteredInsts = instsData.filter(i => !i.name.toUpperCase().startsWith("CONOFTA"));
+      setInstitutions(filteredInsts);
+    }
     setLoading(false);
   };
 
@@ -409,6 +413,13 @@ export default function CRM() {
     color: style.color,
     count: clients.filter((c) => c.segment === key).length,
   }));
+
+  const nivelColors: Record<string, string> = {
+    A: "bg-emerald-500 text-white",
+    B: "bg-blue-500 text-white",
+    C: "bg-amber-500 text-white",
+    D: "bg-slate-200 text-slate-600",
+  };
 
   return (
     <div className="space-y-5 animate-slide-in">
