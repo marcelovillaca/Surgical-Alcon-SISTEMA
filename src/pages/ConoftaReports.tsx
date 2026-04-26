@@ -53,7 +53,7 @@ export default function ConoftaReports() {
 
   useEffect(() => {
     // Use conofta_institutions exclusively — separate from Alcon CRM's `institutions` table
-    (supabase.from("conofta_institutions" as any).select("id, name, city").eq("active", true).order("name") as any)
+    (supabase.from("conofta_institutions" as any).select("id, name, city").eq("is_active", true).order("name") as any)
       .then(({ data }: any) => setInstitutions(data || []));
     supabase.from("conofta_surgeons" as any).select("*").order("name").then(({ data }) => setSurgeons(data || []));
   }, []);

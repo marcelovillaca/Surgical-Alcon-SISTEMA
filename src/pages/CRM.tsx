@@ -105,7 +105,7 @@ export default function CRM() {
     const [{ data: clientsData }, { data: instsData }] = await Promise.all([
       (supabase.from("clients")
         .select("id, name, first_name, last_name, cod_cliente, contact_name, city, segment, pricing_level, visit_frequency, email, phone, address, subspecialties, client_type, primary_institution_id") as any),
-      supabase.from("institutions").select("id, name, type, city").order("name"),
+      supabase.from("institutions").select("id, name, type, city").not("name", "ilike", "CONOFTA%").order("name"),
     ]);
 
     if (clientsData) {
@@ -325,7 +325,7 @@ export default function CRM() {
       if (errors.length > 0) throw new Error(errors.join(", "));
       
       // Fetch institutions to map names
-      const { data: allInsts } = await supabase.from("institutions").select("id, name");
+      const { data: allInsts } = await supabase.from("institutions").select("id, name").not("name", "ilike", "CONOFTA%");
 
       for (const r of rows) {
         const { data: newClient, error } = await supabase.from("clients").insert({

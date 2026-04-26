@@ -58,11 +58,11 @@ export function useConoftaInventory() {
     setLoading(true);
     try {
       // Products
-      const prodRes = await supabase.from("conofta_products").select("*").order("name");
+      const prodRes = await supabase.from("conofta_products").select("*").eq("is_active", true).order("name");
       setProducts(prodRes.data || []);
 
       // Institutions
-      const instRes = await supabase.from("institutions").select("id, name").order("name");
+      const instRes = await supabase.from("conofta_institutions").select("id, name").eq("is_active", true).order("name");
       setInstitutions(instRes.data || []);
 
       // Inventory

@@ -92,7 +92,7 @@ export default function Waitlist() {
   useEffect(() => {
     async function fetchInstitutions() {
       // Use conofta_institutions exclusively — separate from Alcon CRM's `institutions` table
-      const { data } = await (supabase.from("conofta_institutions" as any).select("id, name, city").eq("active", true).order("name") as any);
+      const { data } = await (supabase.from("conofta_institutions" as any).select("id, name, city").eq("is_active", true).order("name") as any);
       setInstitutions(data || []);
       if (role === "coordinador_local" && institutionId) {
         setValue("institution_id", institutionId);

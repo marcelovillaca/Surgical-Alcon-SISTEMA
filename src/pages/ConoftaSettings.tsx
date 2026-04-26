@@ -49,7 +49,7 @@ export default function ConoftaSettings() {
   const [products, setProducts] = useState<any[]>([]);
 
   async function fetchProducts() {
-    const { data } = await supabase.from('conofta_products' as any).select('*').eq('active', true).order('name');
+    const { data } = await supabase.from('conofta_products' as any).select('*').eq('is_active', true).order('name');
     if (data) setProducts(data);
   }
 
@@ -58,7 +58,7 @@ export default function ConoftaSettings() {
     const { data, error } = await supabase
       .from('conofta_institutions')
       .select('*')
-      .eq('active', true)
+      .eq('is_active', true)
       .order('name');
     
     if (error) {
@@ -143,7 +143,7 @@ export default function ConoftaSettings() {
 
   async function handleDeleteSede(id: string) {
     if (!window.confirm("¿Está seguro de eliminar esta sede?")) return;
-    const { error } = await supabase.from('conofta_institutions').update({ active: false }).eq('id', id);
+    const { error } = await supabase.from('conofta_institutions').update({ is_active: false }).eq('id', id);
     if (error) toast.error("Error al eliminar");
     else {
       toast.success("Sede eliminada");
@@ -155,7 +155,7 @@ export default function ConoftaSettings() {
 
   async function handleDeleteSurgeon(id: string) {
     if (!window.confirm("¿Está seguro de eliminar este cirujano?")) return;
-    const { error } = await supabase.from('conofta_surgeons' as any).update({ active: false }).eq('id', id);
+    const { error } = await supabase.from('conofta_surgeons' as any).update({ is_active: false }).eq('id', id);
     if (error) toast.error("Error al eliminar");
     else {
       toast.success("Cirujano eliminado");
@@ -181,7 +181,7 @@ export default function ConoftaSettings() {
 
   async function handleDeleteProduct(id: string) {
     if (!window.confirm("¿Está seguro de eliminar este producto?")) return;
-    const { error } = await supabase.from('conofta_products' as any).update({ active: false }).eq('id', id);
+    const { error } = await supabase.from('conofta_products' as any).update({ is_active: false }).eq('id', id);
     if (error) toast.error("Error al eliminar");
     else {
       toast.success("Producto eliminado");

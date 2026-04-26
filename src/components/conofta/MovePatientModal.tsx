@@ -68,7 +68,7 @@ export default function MovePatientModal({ entry, onOpenChange, onSuccess, updat
       // Use conofta_institutions exclusively — separate from Alcon CRM's `institutions` table
       let surgQuery = supabase.from('conofta_surgeons' as any).select('*, conofta_institutions(name)').eq('is_active', true).order('name');
       const [instRes, surgRes] = await Promise.all([
-        (supabase.from('conofta_institutions' as any).select('id, name, city').eq('active', true).order('name') as any),
+        (supabase.from('conofta_institutions' as any).select('id, name, city').eq('is_active', true).order('name') as any),
         surgQuery,
       ]);
       setInstitutions(instRes.data || []);

@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS public.conofta_institutions (
     city          text,
     address       text,
     cod_institucion text,
-    active        boolean      DEFAULT true NOT NULL,
+    is_active     boolean      DEFAULT true NOT NULL,
     created_at    timestamptz  DEFAULT now(),
     created_by    uuid         REFERENCES auth.users(id)
 );
@@ -74,8 +74,8 @@ FOR EACH ROW EXECUTE FUNCTION handle_conofta_inst_automation();
 -- ============================================================
 -- 4. MIGRATE EXISTING DATA (copy from institutions, skip dupes)
 -- ============================================================
-INSERT INTO public.conofta_institutions (name, city, address, active)
-SELECT DISTINCT name, city, address, COALESCE(active, true)
+INSERT INTO public.conofta_institutions (name, city, address, is_active)
+SELECT DISTINCT name, city, address, true
 FROM public.institutions
 WHERE name IS NOT NULL
 ON CONFLICT DO NOTHING;
@@ -96,9 +96,8 @@ ALTER TABLE public.conofta_surgeons
 -- ============================================================
 -- 7. FIX NULL ACTIVE VALUES (surgeons, products)
 -- ============================================================
-UPDATE public.conofta_surgeons  SET active = true WHERE active IS NULL;
-UPDATE public.conofta_products  SET active = true WHERE active IS NULL;
 UPDATE public.conofta_surgeons  SET is_active = true WHERE is_active IS NULL;
+UPDATE public.conofta_products  SET is_active = true WHERE is_active IS NULL;
 
 -- ============================================================
 -- 8. RELOAD SCHEMA CACHE
