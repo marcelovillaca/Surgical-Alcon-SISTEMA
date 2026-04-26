@@ -85,10 +85,15 @@ export default function CRM() {
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [importLoading, setImportLoading] = useState(false);
 
-  // New institution form
+  // New institution form + modal control
+  const [showNewInst, setShowNewInst] = useState(false);
   const [instName, setInstName] = useState("");
   const [instType, setInstType] = useState("clinica");
   const [instCity, setInstCity] = useState("");
+
+  // Institution linking state
+  const [linkInstId, setLinkInstId] = useState("");
+  const [linkClientId, setLinkClientId] = useState<string | null>(null);
 
   useEffect(() => { fetchData(); }, []);
 
