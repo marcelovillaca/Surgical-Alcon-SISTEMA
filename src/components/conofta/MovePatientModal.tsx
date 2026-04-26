@@ -65,9 +65,10 @@ export default function MovePatientModal({ entry, onOpenChange, onSuccess, updat
   useEffect(() => {
     async function fetchInitialData() {
       setLoadingInitial(true);
-      let surgQuery = supabase.from('conofta_surgeons' as any).select('*, institutions(name)').eq('is_active', true).order('name');
+      // Use conofta_institutions exclusively — separate from Alcon CRM's `institutions` table
+      let surgQuery = supabase.from('conofta_surgeons' as any).select('*, conofta_institutions(name)').eq('is_active', true).order('name');
       const [instRes, surgRes] = await Promise.all([
-        supabase.from('institutions').select('*').order('name'),
+        (supabase.from('conofta_institutions' as any).select('id, name, city').eq('active', true).order('name') as any),
         surgQuery,
       ]);
       setInstitutions(instRes.data || []);
@@ -222,7 +223,7 @@ export default function MovePatientModal({ entry, onOpenChange, onSuccess, updat
                         {localSurgeons.map((s) => (
                           <CommandItem
                             key={s.id}
-                            value={`${s.name} ${isAdmin && s.institutions?.name ? s.institutions.name : ''}`}
+                            value={`${s.name} ${isAdmin && s.conofta_institutions?.name ? s.conofta_institutions.name : ''}`}
                             onSelect={() => {
                               setSelectedSurgeonId(s.id);
                               setOpenSurgeon(false);
@@ -238,9 +239,9 @@ export default function MovePatientModal({ entry, onOpenChange, onSuccess, updat
                               />
                               <span className="font-medium">{s.name}</span>
                             </div>
-                            {isAdmin && s.institutions?.name && (
+                            {isAdmin && s.conofta_institutions?.name && (
                               <Badge variant="outline" className="text-[9px] bg-white/5 border-white/5 opacity-60">
-                                {s.institutions.name}
+                                {s.conofta_institutions.name}
                               </Badge>
                             )}
                           </CommandItem>

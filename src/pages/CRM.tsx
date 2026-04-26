@@ -100,10 +100,12 @@ export default function CRM() {
   useEffect(() => { fetchData(); }, []);
 
   const fetchData = async () => {
+    // IMPORTANT: Only fetch from `institutions` (Alcon CRM table), NOT `conofta_institutions`.
+    // The two tables are completely separate: Alcon CRM <-> CONOFTA modules.
     const [{ data: clientsData }, { data: instsData }] = await Promise.all([
       (supabase.from("clients")
         .select("id, name, first_name, last_name, cod_cliente, contact_name, city, segment, pricing_level, visit_frequency, email, phone, address, subspecialties, client_type, primary_institution_id") as any),
-      supabase.from("institutions").select("id, name, type, city"),
+      supabase.from("institutions").select("id, name, type, city").order("name"),
     ]);
 
     if (clientsData) {

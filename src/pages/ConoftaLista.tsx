@@ -236,7 +236,9 @@ export default function ConoftaLista() {
   const [showFilters,         setShowFilters]         = useState(true);
 
   useEffect(() => {
-    supabase.from("institutions").select("*").order("name").then(({ data }) => setInstitutions(data || []));
+    // Use conofta_institutions exclusively — separate from Alcon CRM's `institutions` table
+    (supabase.from("conofta_institutions" as any).select("id, name, city").eq("active", true).order("name") as any)
+      .then(({ data }: any) => setInstitutions(data || []));
   }, []);
 
   useEffect(() => { setLocalEntries(entries); }, [entries]);
