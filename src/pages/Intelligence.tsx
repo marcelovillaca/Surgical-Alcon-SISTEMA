@@ -98,6 +98,7 @@ export default function Intelligence() {
   }, [isGerente, selectedYear, selectedMarket]);
 
   const fetchData = async () => {
+    console.log("🚀 [DEBUG] Intelligence v2.1 init - Market:", selectedMarket);
     setLoadingSales(true);
     let allSales: any[] = [];
     let from = 0;
