@@ -137,7 +137,7 @@ export function useDashboardData(filters: DashboardFilters, includePublic = fals
     const rowCost = (r: SalesRow): number => {
       const qty = Number(r.total) || 0;  // qty from CANT column — allow 0
       if (qty === 0) return 0;
-      const refCost = costRefMap[normStr(r.codigo_produto)] ?? costRefMap[normStr(r.produto)];
+      const refCost = costRefMap[normStr(r.codigo_producto)] ?? costRefMap[normStr(r.producto)];
       return (refCost != null && refCost > 0)
         ? refCost * qty           // centralized reference cost × qty (most accurate)
         : Number(r.costo) * qty;  // unit cost from file (COSTO col K) × qty (CANT col L)

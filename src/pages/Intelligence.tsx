@@ -199,8 +199,14 @@ export default function Intelligence() {
         const revenue = monthSales.reduce((sum: number, s: any) => sum + Number(s.monto_usd || 0), 0);
         const standardSales = monthSales.filter(s => s.vendedor?.trim().toLowerCase() !== "la policlinica");
         const polySales = monthSales.filter(s => s.vendedor?.trim().toLowerCase() === "la policlinica");
-        const cogs = standardSales.reduce((sum: number, s: any) => sum + Number(s.costo || 0), 0);
-        const autofactura = polySales.reduce((sum: number, s: any) => sum + Number(s.costo || 0), 0);
+        // costo = UNIT cost per item; total = qty sold → multiply to get row total cost
+        // qty=0 means no sale → contributes $0 cost (mirrors useDashboardData logic)
+        const rowCost = (s: any) => {
+          const qty = Number(s.total) || 0;
+          return qty === 0 ? 0 : Number(s.costo || 0) * qty;
+        };
+        const cogs = standardSales.reduce((sum: number, s: any) => sum + rowCost(s), 0);
+        const autofactura = polySales.reduce((sum: number, s: any) => sum + rowCost(s), 0);
         const grossMargin = revenue - cogs - autofactura;
 
         // YTD Logic: If current year, don't show costs for current or future months 
