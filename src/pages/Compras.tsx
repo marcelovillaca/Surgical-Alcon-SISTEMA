@@ -17,6 +17,11 @@ type Product = {
 type InventoryMap = Record<string, number>; // productId -> stock
 type SalesMap = Record<string, number>; // sku -> average monthly sales
 
+interface StockImport {
+  sku: string;
+  stock: number;
+}
+
 const PRODUCT_LINES = [
   { value: "total_monofocals", label: "Monofocales" },
   { value: "atiols", label: "ATIOLs" },
@@ -30,6 +35,8 @@ const PRODUCT_LINES = [
 export default function Compras() {
   const [products, setProducts] = useState<Product[]>([]);
   const [inventory, setInventory] = useState<InventoryMap>({});
+  const [dbInventory, setDbInventory] = useState<InventoryMap>({}); // Keep original DB stock
+  const [isUsingImportedStock, setIsUsingImportedStock] = useState(false);
   const [salesData, setSalesData] = useState<SalesMap>({});
   const [loading, setLoading] = useState(true);
   const [targetMonths, setTargetMonths] = useState<number>(6); // Default 6 months coverage
@@ -61,6 +68,7 @@ export default function Compras() {
       lotsData?.forEach(lot => {
         stockMap[lot.product_id] = (stockMap[lot.product_id] || 0) + lot.quantity;
       });
+      setDbInventory(stockMap);
       setInventory(stockMap);
 
       // 3. Fetch sales from the last 6 months
@@ -172,6 +180,75 @@ export default function Compras() {
     XLSX.writeFile(wb, `Pedido_Alcon_${new Date().toISOString().split("T")[0]}.xlsx`);
   };
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: "binary" });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        // Parse as array of arrays
+        const data = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
+        
+        let newStockMap: InventoryMap = {};
+        let importCount = 0;
+
+        // Skip header row (assuming row 0 is header)
+        for (let i = 1; i < data.length; i++) {
+          const row = data[i];
+          if (!row || row.length < 2) continue;
+          
+          const sku = String(row[0]).trim().toUpperCase();
+          const stock = Number(row[1]);
+          
+          if (sku && !isNaN(stock)) {
+            // Find product id for this sku
+            const product = products.find(p => p.sku === sku);
+            if (product) {
+              newStockMap[product.id] = stock;
+              importCount++;
+            }
+          }
+        }
+
+        if (importCount > 0) {
+          setInventory(newStockMap);
+          setIsUsingImportedStock(true);
+          toast({ title: "Stock Importado", description: `Se actualizaron ${importCount} SKUs con éxito.`, variant: "default" });
+        } else {
+          toast({ title: "Error en Importación", description: "No se encontraron SKUs válidos en el archivo.", variant: "destructive" });
+        }
+      } catch (err) {
+        toast({ title: "Error", description: "No se pudo leer el archivo Excel.", variant: "destructive" });
+      }
+    };
+    reader.readAsBinaryString(file);
+    // Reset file input
+    e.target.value = '';
+  };
+
+  const resetToDbStock = () => {
+    setInventory(dbInventory);
+    setIsUsingImportedStock(false);
+    toast({ title: "Stock Restaurado", description: "Utilizando el stock de la base de datos.", variant: "default" });
+  };
+
+  const downloadStockTemplate = () => {
+    const wsData = [
+      ["SKU", "STOCK_ACTUAL"],
+      ["MON-001", "150"],
+      ["ATI-001", "45"]
+    ];
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    XLSX.utils.book_append_sheet(wb, ws, "Stock");
+    XLSX.writeFile(wb, "Plantilla_Stock_Compras.xlsx");
+  };
+
   const totalEstimatedCost = tableData.reduce((acc, curr) => acc + curr.estimatedCost, 0);
   const totalItemsToBuy = tableData.filter(t => t.finalQty > 0).length;
   const criticalItemsAtRisk = tableData.filter(t => t.isAtRisk).length;
@@ -217,11 +294,41 @@ export default function Compras() {
 
         <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-6 backdrop-blur-md relative overflow-hidden">
           <div className="absolute top-0 right-0 p-4 opacity-10"><Package size={80} /></div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-blue-500/70">SKUs a Comprar</p>
-          <h2 className="text-3xl font-display font-black text-foreground mt-1">
-            {totalItemsToBuy} <span className="text-lg font-medium text-muted-foreground">ítems</span>
+          <div className="flex justify-between items-start">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-blue-500/70">Origen del Stock</p>
+            {isUsingImportedStock ? (
+              <span className="bg-blue-500/20 text-blue-400 text-[9px] font-bold px-2 py-0.5 rounded border border-blue-500/30">EXCEL</span>
+            ) : (
+              <span className="bg-primary/20 text-primary text-[9px] font-bold px-2 py-0.5 rounded border border-primary/30">SISTEMA</span>
+            )}
+          </div>
+          <h2 className="text-lg font-display font-black text-foreground mt-2 leading-tight">
+            {isUsingImportedStock ? "Stock Importado" : "Stock Interno DB"}
           </h2>
-          <p className="text-xs text-muted-foreground font-medium mt-2">Productos por debajo del target</p>
+          <div className="flex gap-2 mt-3">
+            <input 
+              type="file" 
+              accept=".xlsx,.xls" 
+              id="stockUpload" 
+              className="hidden" 
+              onChange={handleFileUpload} 
+            />
+            <label 
+              htmlFor="stockUpload" 
+              className="flex-1 text-center py-1.5 rounded-lg border border-blue-500/30 bg-blue-500/10 text-blue-400 text-[10px] font-bold cursor-pointer hover:bg-blue-500/20 transition-all"
+            >
+              Cargar Excel
+            </label>
+            {isUsingImportedStock && (
+              <button 
+                onClick={resetToDbStock}
+                className="flex-1 py-1.5 rounded-lg border border-border bg-card text-muted-foreground text-[10px] font-bold hover:bg-muted transition-all"
+              >
+                Reset DB
+              </button>
+            )}
+          </div>
+          <button onClick={downloadStockTemplate} className="w-full text-center text-[9px] text-blue-500/60 hover:text-blue-400 hover:underline mt-2">Descargar Plantilla</button>
         </div>
 
         <div className={cn("rounded-2xl border p-6 backdrop-blur-md relative overflow-hidden transition-colors", criticalItemsAtRisk > 0 ? "border-destructive/30 bg-destructive/10" : "border-muted bg-muted/5")}>
