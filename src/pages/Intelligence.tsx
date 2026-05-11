@@ -121,13 +121,13 @@ export default function Intelligence() {
     
     // Exact Mirror of useDashboardData filtering logic
     allSales = allSales.filter(s => {
-      // 1. CONOFTA internal exclusion (Always)
-      if ((s.cliente || '').toUpperCase().includes('CONOFTA')) return false;
-      
-      // 2. Market filter
+      const mStr = (s.mercado || '').toString().toLowerCase();
+      const isPublic = mStr.includes('p\u00fablico') || mStr.includes('publico');
+      const isConofta = (s.cliente || '').toUpperCase().includes('CONOFTA');
+
       if (selectedMarket === "privado") {
-        const mStr = (s.mercado || '').toString().toLowerCase();
-        if (mStr.includes('p\u00fablico') || mStr.includes('publico')) return false;
+        if (isPublic) return false;
+        if (isConofta) return false;
       }
       return true;
     });

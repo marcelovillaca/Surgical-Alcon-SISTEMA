@@ -100,12 +100,10 @@ export function useDashboardData(filters: DashboardFilters, includePublic = fals
       if (monthNums && !monthNums.includes(d.getMonth() + 1)) return false;
       if (!allLines && !normalizedFilterLines.includes(normalizeLine(s.linea_de_producto))) return false;
       if (filterVendedor !== 'todos' && s.vendedor.trim().toLowerCase() !== filterVendedor) return false;
-      // Always exclude internal CONOFTA sales from financial reports
-      if ((s.cliente || '').toUpperCase().includes('CONOFTA')) return false;
-
       if (!includePublic) {
         const mStr = (s.mercado || '').toString().toLowerCase();
         if (mStr.includes('p\u00fablico') || mStr.includes('publico')) return false;
+        if ((s.cliente || '').toUpperCase().includes('CONOFTA')) return false;
       }
       return true;
     });
