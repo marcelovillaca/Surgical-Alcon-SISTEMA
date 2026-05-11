@@ -318,10 +318,10 @@ export default function Intelligence() {
       opex: curOpex,
       cogs: curCogs,
       autofactura: curAuto,
-      monthsCount: lastMonthIndex + 1,
+      monthsCount: limitIdx + 1,
       isShowingYTD: isCurrentYearSelected
     };
-  }, [plData, selectedYear]);
+  }, [plData, selectedYear, selectedQuarter, selectedMonths]);
 
   if (roleLoading) return <div className="flex items-center justify-center py-20"><div className="h-8 w-8 rounded-lg gradient-emerald animate-pulse" /></div>;
   if (!isGerente) return (
