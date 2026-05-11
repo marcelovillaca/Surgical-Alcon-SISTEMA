@@ -98,7 +98,6 @@ export default function Intelligence() {
   }, [isGerente, selectedYear, selectedMarket]);
 
   const fetchData = async () => {
-    console.log("🚀 [DEBUG] Intelligence v2.1 init - Market:", selectedMarket);
     setLoadingSales(true);
     let allSales: any[] = [];
     let from = 0;
@@ -327,9 +326,7 @@ export default function Intelligence() {
       <div className="rounded-2xl border border-border bg-card/50 backdrop-blur-sm p-6 shadow-xl ring-1 ring-white/5">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div>
-            <h1 className="text-3xl font-display font-bold text-foreground tracking-tight">
-              Inteligencia Financiera <span className="text-[10px] font-mono text-muted-foreground bg-muted px-1 rounded ml-1">v2.1</span>
-            </h1>
+            <h1 className="text-3xl font-display font-bold text-foreground tracking-tight">Inteligencia Financiera</h1>
             <p className="text-sm text-muted-foreground mt-1">P&L completo en USD con comparativo año anterior</p>
           </div>
           <div className="flex flex-wrap items-center gap-4">
