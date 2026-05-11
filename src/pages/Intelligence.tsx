@@ -107,7 +107,8 @@ export default function Intelligence() {
       .select("fecha, costo, total, monto_usd, linea_de_producto, vendedor, mercado, cliente")
       .gte("fecha", `${selectedYear - 1}-01-01`)
       .lte("fecha", `${selectedYear}-12-31`);
-    if (selectedMarket === "privado") query = query.eq("mercado", "Privado");
+    
+    // Fetch all and filter in JS to match Dashboard's robust 'publico' check
     while (true) {
       const { data } = await query.range(from, from + pageSize - 1);
       if (!data || data.length === 0) break;
@@ -115,8 +116,20 @@ export default function Intelligence() {
       if (data.length < pageSize) break;
       from += pageSize;
     }
-    // Mirror Dashboard filter: exclude internal CONOFTA client rows
-    allSales = allSales.filter(s => !(s.cliente || '').toUpperCase().includes('CONOFTA'));
+    
+    // Exact Mirror of useDashboardData filtering logic
+    allSales = allSales.filter(s => {
+      // 1. CONOFTA internal exclusion (Always)
+      if ((s.cliente || '').toUpperCase().includes('CONOFTA')) return false;
+      
+      // 2. Market filter
+      if (selectedMarket === "privado") {
+        const mStr = (s.mercado || '').toString().toLowerCase();
+        if (mStr.includes('p\u00fablico') || mStr.includes('publico')) return false;
+      }
+      return true;
+    });
+
     setSalesData(allSales);
     const [{ data: oldest }, { data: newest }] = await Promise.all([
       supabase.from("sales_details").select("fecha").order("fecha", { ascending: true }).limit(1),
@@ -313,7 +326,9 @@ export default function Intelligence() {
       <div className="rounded-2xl border border-border bg-card/50 backdrop-blur-sm p-6 shadow-xl ring-1 ring-white/5">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div>
-            <h1 className="text-3xl font-display font-bold text-foreground tracking-tight">Inteligencia Financiera</h1>
+            <h1 className="text-3xl font-display font-bold text-foreground tracking-tight">
+              Inteligencia Financiera <span className="text-[10px] font-mono text-muted-foreground bg-muted px-1 rounded ml-1">v2.1</span>
+            </h1>
             <p className="text-sm text-muted-foreground mt-1">P&L completo en USD con comparativo año anterior</p>
           </div>
           <div className="flex flex-wrap items-center gap-4">
