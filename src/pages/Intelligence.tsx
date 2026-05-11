@@ -77,7 +77,7 @@ export default function Intelligence() {
   const [hrData, setHrData] = useState<any[]>([]);
   const [loadingSales, setLoadingSales] = useState(true);
   const [selectedQuarter, setSelectedQuarter] = useState<string>("all");
-  const [selectedMonths, setSelectedMonths] = useState<number[]>([]);
+  const [selectedMonths, setSelectedMonths] = useState<string[]>(["Todos"]);
 
   // ── New cost form state ────────────────────────────────────────────────────
   const [costForm, setCostForm] = useState({
@@ -265,19 +265,8 @@ export default function Intelligence() {
 
     // Filter based on Quarter and Months
     const filterByPeriod = (m: any, idx: number) => {
-      const month = idx + 1;
-      // Quarter filter
-      if (selectedQuarter !== "all") {
-        const q = parseInt(selectedQuarter);
-        const startMonth = (q - 1) * 3 + 1;
-        const endMonth = q * 3;
-        if (month < startMonth || month > endMonth) return false;
-      }
-      // Specific months filter
-      if (selectedMonths.length > 0) {
-        if (!selectedMonths.includes(month)) return false;
-      }
-      return true;
+      if (selectedMonths.includes("Todos")) return true;
+      return selectedMonths.includes(MESES[idx]);
     };
 
     const periodCurrent = plData.current.filter(filterByPeriod);
@@ -324,6 +313,33 @@ export default function Intelligence() {
     };
   }, [plData, selectedYear, selectedQuarter, selectedMonths]);
 
+  const toggleMonth = (m: string) => {
+    if (m === "Todos") {
+      setSelectedMonths(["Todos"]);
+      setSelectedQuarter("all");
+      return;
+    }
+    const next = selectedMonths.filter(x => x !== "Todos");
+    if (next.includes(m)) {
+      const filtered = next.filter(x => x !== m);
+      setSelectedMonths(filtered.length ? filtered : ["Todos"]);
+    } else {
+      setSelectedMonths([...next, m]);
+    }
+    setSelectedQuarter("all");
+  };
+
+  const selectQuarter = (q: string) => {
+    setSelectedQuarter(q);
+    if (q === "all") {
+      setSelectedMonths(["Todos"]);
+    } else {
+      const qNum = parseInt(q);
+      const qMonths = MESES.slice((qNum - 1) * 3, qNum * 3);
+      setSelectedMonths(qMonths);
+    }
+  };
+
   if (roleLoading) return <div className="flex items-center justify-center py-20"><div className="h-8 w-8 rounded-lg gradient-emerald animate-pulse" /></div>;
   if (!isGerente) return (
     <div className="flex flex-col items-center justify-center py-20 space-y-4">
@@ -350,9 +366,9 @@ export default function Intelligence() {
     <div className="space-y-6 animate-slide-in">
       <div className="rounded-2xl border border-border bg-card/50 backdrop-blur-sm p-6 shadow-xl ring-1 ring-white/5">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-            <h1 className="text-3xl font-display font-bold text-foreground tracking-tight">
-              Inteligencia Financiera <span className="text-[10px] font-mono text-muted-foreground bg-muted px-1 rounded ml-1">v2.2</span>
-            </h1>
+          <div>
+            <h1 className="text-3xl font-display font-black text-foreground tracking-tight">Inteligencia Financiera</h1>
+            <p className="text-sm text-muted-foreground mt-1">P&L completo en USD con comparativo año anterior</p>
           </div>
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex bg-background/50 p-1.5 rounded-xl border border-border shadow-md">
@@ -366,41 +382,52 @@ export default function Intelligence() {
                 {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
               </select>
             </div>
+          </div>
+        </div>
+      </div>
 
-            <div className="h-10 w-px bg-border hidden lg:block mx-1" />
-
-            <div className="flex bg-background/50 p-1 rounded-xl border border-border shadow-sm">
-              <select 
-                value={selectedQuarter} 
-                onChange={e => {
-                  setSelectedQuarter(e.target.value);
-                  setSelectedMonths([]); // Reset months when changing quarter
-                }}
-                className="bg-transparent border-none text-[10px] font-bold px-2 outline-none cursor-pointer text-muted-foreground hover:text-foreground"
-              >
-                <option value="all">Año Completo</option>
-                <option value="1">Q1 (Ene-Mar)</option>
-                <option value="2">Q2 (Abr-Jun)</option>
-                <option value="3">Q3 (Jul-Sep)</option>
-                <option value="4">Q4 (Oct-Dic)</option>
-              </select>
+      {/* New Filter Section */}
+      <div className="rounded-2xl border border-border bg-card/30 p-5 space-y-4">
+        <div className="flex flex-wrap items-center gap-6">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-3">Trimestres</p>
+            <div className="flex gap-2">
+              {["all", "1", "2", "3", "4"].map(q => (
+                <button
+                  key={q}
+                  onClick={() => selectQuarter(q)}
+                  className={cn(
+                    "px-4 py-1.5 rounded-full text-[11px] font-bold border transition-all",
+                    selectedQuarter === q 
+                      ? "bg-primary/20 text-primary border-primary/30 shadow-sm" 
+                      : "bg-transparent text-muted-foreground border-border hover:border-muted-foreground"
+                  )}
+                >
+                  {q === "all" ? "Año Completo" : `Q${q}`}
+                </button>
+              ))}
             </div>
+          </div>
 
-            <div className="relative group">
-              <select 
-                multiple
-                value={selectedMonths.map(String)}
-                onChange={e => {
-                  const vals = Array.from(e.target.selectedOptions, option => parseInt(option.value));
-                  setSelectedMonths(vals);
-                }}
-                className="h-10 px-3 rounded-lg border border-border bg-background text-[10px] font-bold text-foreground outline-none ring-primary/20 focus:ring-2 transition-all max-w-[120px] cursor-pointer"
-              >
-                {MESES.map((m, i) => (
-                  <option key={i} value={i+1}>{m}</option>
-                ))}
-              </select>
-              <div className="absolute -top-6 left-0 text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Filtrar Meses</div>
+          <div className="h-12 w-px bg-border hidden lg:block" />
+
+          <div className="flex-1">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-3">Meses Individuales</p>
+            <div className="flex flex-wrap gap-2">
+              {["Todos", ...MESES].map(m => (
+                <button
+                  key={m}
+                  onClick={() => toggleMonth(m)}
+                  className={cn(
+                    "px-3 py-1.5 rounded-full text-[10px] font-bold border transition-all",
+                    selectedMonths.includes(m)
+                      ? "bg-emerald-500/20 text-emerald-500 border-emerald-500/30"
+                      : "bg-transparent text-muted-foreground border-border hover:border-muted-foreground"
+                  )}
+                >
+                  {m}
+                </button>
+              ))}
             </div>
           </div>
         </div>
