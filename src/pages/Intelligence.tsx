@@ -318,6 +318,7 @@ export default function Intelligence() {
       opex: curOpex,
       cogs: curCogs,
       autofactura: curAuto,
+      /* Cache bust: 2026-05-11 16:51 */
       monthsCount: limitIdx + 1,
       isShowingYTD: isCurrentYearSelected
     };
