@@ -318,7 +318,7 @@ export default function Intelligence() {
       opex: curOpex,
       cogs: curCogs,
       autofactura: curAuto,
-      /* Cache bust: 2026-05-11 16:51 */
+      /* Build: 2026-05-11 16:53 (v2.2) */
       monthsCount: limitIdx + 1,
       isShowingYTD: isCurrentYearSelected
     };
@@ -350,9 +350,9 @@ export default function Intelligence() {
     <div className="space-y-6 animate-slide-in">
       <div className="rounded-2xl border border-border bg-card/50 backdrop-blur-sm p-6 shadow-xl ring-1 ring-white/5">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          <div>
-            <h1 className="text-3xl font-display font-bold text-foreground tracking-tight">Inteligencia Financiera</h1>
-            <p className="text-sm text-muted-foreground mt-1">P&L completo en USD con comparativo año anterior</p>
+            <h1 className="text-3xl font-display font-bold text-foreground tracking-tight">
+              Inteligencia Financiera <span className="text-[10px] font-mono text-muted-foreground bg-muted px-1 rounded ml-1">v2.2</span>
+            </h1>
           </div>
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex bg-background/50 p-1.5 rounded-xl border border-border shadow-md">

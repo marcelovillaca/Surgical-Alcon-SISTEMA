@@ -59,6 +59,7 @@ function clienteDisplay(cliente: string, cod_cliente: string): string {
 }
 
 export function useDashboardData(filters: DashboardFilters, includePublic = false) {
+  /* Logic Update: v2.2 - Cost Alignment */
   const [salesRaw, setSalesRaw] = useState<SalesRow[]>([]);
   const [targetsRaw, setTargetsRaw] = useState<TargetRow[]>([]);
   const [loading, setLoading] = useState(true);
