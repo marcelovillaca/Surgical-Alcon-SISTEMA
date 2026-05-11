@@ -104,7 +104,7 @@ export default function Intelligence() {
     const pageSize = 1000;
     let query = supabase
       .from("sales_details")
-      .select("fecha, costo, total, monto_usd, linea_de_producto, vendedor, mercado")
+      .select("fecha, costo, total, monto_usd, linea_de_producto, vendedor, mercado, cliente")
       .gte("fecha", `${selectedYear - 1}-01-01`)
       .lte("fecha", `${selectedYear}-12-31`);
     if (selectedMarket === "privado") query = query.eq("mercado", "Privado");
@@ -115,6 +115,8 @@ export default function Intelligence() {
       if (data.length < pageSize) break;
       from += pageSize;
     }
+    // Mirror Dashboard filter: exclude internal CONOFTA client rows
+    allSales = allSales.filter(s => !(s.cliente || '').toUpperCase().includes('CONOFTA'));
     setSalesData(allSales);
     const [{ data: oldest }, { data: newest }] = await Promise.all([
       supabase.from("sales_details").select("fecha").order("fecha", { ascending: true }).limit(1),
