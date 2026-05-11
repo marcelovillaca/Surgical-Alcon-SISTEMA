@@ -76,6 +76,8 @@ export default function Intelligence() {
   const [salesData, setSalesData] = useState<any[]>([]);
   const [hrData, setHrData] = useState<any[]>([]);
   const [loadingSales, setLoadingSales] = useState(true);
+  const [selectedQuarter, setSelectedQuarter] = useState<string>("all");
+  const [selectedMonths, setSelectedMonths] = useState<number[]>([]);
 
   // ── New cost form state ────────────────────────────────────────────────────
   const [costForm, setCostForm] = useState({
@@ -261,31 +263,53 @@ export default function Intelligence() {
   const totals = useMemo(() => {
     const isCurrentYearSelected = selectedYear === (new Date().getFullYear());
 
-    // Find the last month that has any revenue in the current view
-    let lastMonthIndex = 11;
-    if (isCurrentYearSelected) {
+    // Filter based on Quarter and Months
+    const filterByPeriod = (m: any, idx: number) => {
+      const month = idx + 1;
+      // Quarter filter
+      if (selectedQuarter !== "all") {
+        const q = parseInt(selectedQuarter);
+        const startMonth = (q - 1) * 3 + 1;
+        const endMonth = q * 3;
+        if (month < startMonth || month > endMonth) return false;
+      }
+      // Specific months filter
+      if (selectedMonths.length > 0) {
+        if (!selectedMonths.includes(month)) return false;
+      }
+      return true;
+    };
+
+    const periodCurrent = plData.current.filter(filterByPeriod);
+    const periodPrevious = plData.previous.filter(filterByPeriod);
+
+    // Further limit by current month only if it's the current year and no specific months selected
+    let limitIdx = 11;
+    if (isCurrentYearSelected && selectedQuarter === "all" && selectedMonths.length === 0) {
       const lastRevIdx = [...plData.current].reverse().findIndex(m => m.revenue > 0);
-      lastMonthIndex = lastRevIdx === -1 ? 0 : 11 - lastRevIdx;
+      limitIdx = lastRevIdx === -1 ? 0 : 11 - lastRevIdx;
     }
 
-    const periodCurrent = plData.current.filter((_, idx) => idx <= lastMonthIndex);
-    const periodPrevious = plData.previous.filter((_, idx) => idx <= lastMonthIndex);
+    const finalCurrent = periodCurrent.filter(m => m.month_idx <= limitIdx);
+    const finalPrevious = periodPrevious.filter(m => m.month_idx <= limitIdx);
 
     const sum = (arr: any[], key: string) => arr.reduce((s: number, r: any) => s + r[key], 0);
 
-    const curRev = sum(periodCurrent, "revenue");
-    const prevRev = sum(periodPrevious, "revenue");
-    const curGM = sum(periodCurrent, "grossMargin");
-    const curNet = sum(periodCurrent, "netMargin");
-    const curRH = sum(periodCurrent, "rhCost");
-    const curOpex = sum(periodCurrent, "opex");
+    const curRev = sum(finalCurrent, "revenue");
+    const prevRev = sum(finalPrevious, "revenue");
+    const curGM = sum(finalCurrent, "grossMargin");
+    const curNet = sum(finalCurrent, "netMargin");
+    const curRH = sum(finalCurrent, "rhCost");
+    const curOpex = sum(finalCurrent, "opex");
     const curCogs = sum(periodCurrent, "cogs");
     const curAuto = sum(periodCurrent, "autofactura");
 
     return {
       revenue: curRev,
       revenuePrev: prevRev,
-      revenueChange: prevRev ? ((curRev - prevRev) / prevRev * 100) : 0,
+      revenueChange: prevRev > 0 ? ((curRev - prevRev) / prevRev) * 100 : 0,
+      gmChange: prevRev > 0 ? (curGM / curRev * 100) - (sum(finalPrevious, "grossMargin") / prevRev * 100) : 0,
+      periodLabel: selectedQuarter !== "all" ? `Q${selectedQuarter}` : selectedMonths.length > 0 ? "Meses Seleccionados" : "YTD",
       grossMargin: curGM,
       gmPct: curRev ? (curGM / curRev * 100) : 0,
       netMargin: curNet,
@@ -337,9 +361,45 @@ export default function Intelligence() {
             <div className="h-10 w-px bg-border hidden lg:block mx-1" />
             <div className="relative group">
               <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
-              <select value={selectedYear} onChange={e => setSelectedYear(Number(e.target.value))} className="h-10 pl-10 pr-4 rounded-lg border border-border bg-background text-xs font-bold text-foreground outline-none ring-primary/20 focus:ring-2 transition-all min-w-[120px] appearance-none cursor-pointer hover:bg-muted/50">
+              <select value={selectedYear} onChange={e => setSelectedYear(Number(e.target.value))} className="h-10 pl-10 pr-4 rounded-lg border border-border bg-background text-xs font-bold text-foreground outline-none ring-primary/20 focus:ring-2 transition-all min-w-[100px] appearance-none cursor-pointer hover:bg-muted/50">
                 {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
               </select>
+            </div>
+
+            <div className="h-10 w-px bg-border hidden lg:block mx-1" />
+
+            <div className="flex bg-background/50 p-1 rounded-xl border border-border shadow-sm">
+              <select 
+                value={selectedQuarter} 
+                onChange={e => {
+                  setSelectedQuarter(e.target.value);
+                  setSelectedMonths([]); // Reset months when changing quarter
+                }}
+                className="bg-transparent border-none text-[10px] font-bold px-2 outline-none cursor-pointer text-muted-foreground hover:text-foreground"
+              >
+                <option value="all">Año Completo</option>
+                <option value="1">Q1 (Ene-Mar)</option>
+                <option value="2">Q2 (Abr-Jun)</option>
+                <option value="3">Q3 (Jul-Sep)</option>
+                <option value="4">Q4 (Oct-Dic)</option>
+              </select>
+            </div>
+
+            <div className="relative group">
+              <select 
+                multiple
+                value={selectedMonths.map(String)}
+                onChange={e => {
+                  const vals = Array.from(e.target.selectedOptions, option => parseInt(option.value));
+                  setSelectedMonths(vals);
+                }}
+                className="h-10 px-3 rounded-lg border border-border bg-background text-[10px] font-bold text-foreground outline-none ring-primary/20 focus:ring-2 transition-all max-w-[120px] cursor-pointer"
+              >
+                {MESES.map((m, i) => (
+                  <option key={i} value={i+1}>{m}</option>
+                ))}
+              </select>
+              <div className="absolute -top-6 left-0 text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Filtrar Meses</div>
             </div>
           </div>
         </div>
@@ -353,7 +413,7 @@ export default function Intelligence() {
           <h2 className="text-3xl font-display font-black text-foreground mt-1">{formatUSD(totals.revenue)}</h2>
           <div className="flex items-center gap-2 mt-2">
             <ChangeIndicator value={totals.revenueChange} suffix="%" />
-            <span className="text-[10px] text-muted-foreground font-medium uppercase">vs Año Anterior</span>
+            <span className="text-[10px] text-muted-foreground font-medium uppercase">vs Periodo Anterior ({totals.periodLabel})</span>
           </div>
         </div>
 
