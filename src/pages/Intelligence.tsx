@@ -75,7 +75,6 @@ export default function Intelligence() {
   const [selectedMarket, setSelectedMarket] = useState<"privado" | "todos">("privado");
   const [salesData, setSalesData] = useState<any[]>([]);
   const [hrData, setHrData] = useState<any[]>([]);
-  const [conoftaCosts, setConoftaCosts] = useState<any[]>([]);
   const [loadingSales, setLoadingSales] = useState(true);
 
   // ── New cost form state ────────────────────────────────────────────────────
@@ -105,7 +104,7 @@ export default function Intelligence() {
     const pageSize = 1000;
     let query = supabase
       .from("sales_details")
-      .select("fecha, costo, total, monto_usd, linea_de_producto, codigo_producto, producto, vendedor, mercado, cliente")
+      .select("fecha, costo, total, monto_usd, linea_de_producto, vendedor, mercado, cliente")
       .gte("fecha", `${selectedYear - 1}-01-01`)
       .lte("fecha", `${selectedYear}-12-31`);
     if (selectedMarket === "privado") query = query.eq("mercado", "Privado");
@@ -131,9 +130,7 @@ export default function Intelligence() {
       setAvailableYears(yrs);
     }
     const { data: hr } = await supabase.from("hr_costs").select("*").gte("anio", selectedYear - 1).lte("anio", selectedYear);
-    const { data: pc } = await supabase.from("conofta_product_costs" as any).select("*");
     setHrData(hr || []);
-    setConoftaCosts(pc || []);
     setLoadingSales(false);
   };
 
@@ -204,25 +201,10 @@ export default function Intelligence() {
         const revenue = monthSales.reduce((sum: number, s: any) => sum + Number(s.monto_usd || 0), 0);
         const standardSales = monthSales.filter(s => s.vendedor?.trim().toLowerCase() !== "la policlinica");
         const polySales = monthSales.filter(s => s.vendedor?.trim().toLowerCase() === "la policlinica");
-
-        // Build reference cost map from conofta_product_costs (mirrors useDashboardData logic exactly)
-        const normStr = (v: string) => (v || '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        const costsForYear = conoftaCosts.filter((r: any) => !r.anio || r.anio === year);
-        const effectiveCosts = costsForYear.length > 0 ? costsForYear : conoftaCosts;
-        const costRefMap: Record<string, number> = {};
-        effectiveCosts.forEach((r: any) => {
-          const key = normStr(r.item_name || '');
-          if (key) costRefMap[key] = Number(r.costo_alcon || r.costo_unitario || 0);
-        });
-
-        // costo = UNIT cost; total = qty. Use reference cost when available (same as Dashboard)
+        // costo = unit cost per item; total = qty sold → row cost = costo × qty (same as Dashboard)
         const rowCost = (s: any) => {
           const qty = Number(s.total) || 0;
-          if (qty === 0) return 0;
-          const refCost = costRefMap[normStr(s.codigo_producto)] ?? costRefMap[normStr(s.producto)];
-          return (refCost != null && refCost > 0)
-            ? refCost * qty
-            : Number(s.costo || 0) * qty;
+          return qty === 0 ? 0 : Number(s.costo || 0) * qty;
         };
         const cogs = standardSales.reduce((sum: number, s: any) => sum + rowCost(s), 0);
         const autofactura = polySales.reduce((sum: number, s: any) => sum + rowCost(s), 0);

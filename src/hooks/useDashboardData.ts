@@ -61,7 +61,6 @@ function clienteDisplay(cliente: string, cod_cliente: string): string {
 export function useDashboardData(filters: DashboardFilters, includePublic = false) {
   const [salesRaw, setSalesRaw] = useState<SalesRow[]>([]);
   const [targetsRaw, setTargetsRaw] = useState<TargetRow[]>([]);
-  const [productCostsRaw, setProductCostsRaw] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -81,10 +80,8 @@ export function useDashboardData(filters: DashboardFilters, includePublic = fals
         from += pageSize;
       }
       const { data: tData } = await supabase.from('sales_targets').select('*');
-      const { data: pcData } = await supabase.from('conofta_product_costs' as any).select('*');
       setSalesRaw(allSales);
       setTargetsRaw((tData as TargetRow[]) || []);
-      setProductCostsRaw((pcData as any[]) || []);
       setLoading(false);
     };
     fetchAll();
@@ -93,18 +90,6 @@ export function useDashboardData(filters: DashboardFilters, includePublic = fals
   const filtered = useMemo(() => {
     const year = parseInt(filters.year);
     const monthNums = filters.months.includes('Todos') ? null : filters.months.map(m => MONTH_ABBR_TO_NUM[m]).filter(Boolean);
-    const normStr = (v: string) => (v || '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    const costsForYear = productCostsRaw.filter(r => !r.anio || r.anio === year);
-    const effectiveCosts = costsForYear.length > 0 ? costsForYear : productCostsRaw;
-    const costRefMap: Record<string, number> = {};
-    effectiveCosts.forEach(r => {
-      const key = normStr(r.item_name || '');
-      if (key) {
-        // Priority: costo_alcon (for dashboard margins)
-        // Fallback: costo_unitario
-        costRefMap[key] = Number(r.costo_alcon || r.costo_unitario || 0);
-      }
-    });
     const normalizedFilterLines = filters.lines.map(l => normalizeLine(l));
     const allLines = filters.lines.includes('Todas');
     const filterVendedor = filters.vendedor.trim().toLowerCase();
@@ -131,16 +116,11 @@ export function useDashboardData(filters: DashboardFilters, includePublic = fals
     });
 
     const totalVentas = sales.reduce((s, r) => s + Number(r.monto_usd), 0);
-    // COSTO (col K) = unit cost per item. CANT (col L) = qty stored in r.total.
-    // Total row cost = unit_cost × qty — ALWAYS multiply (user confirmed costo = unit cost).
-    // qty=0 is valid (row with no CANT value) → contributes 0 to cost, not phantom cost.
+    // costo = unit cost per item; total = qty sold → row cost = costo × qty
+    // qty=0 → contributes $0 (no phantom costs)
     const rowCost = (r: SalesRow): number => {
-      const qty = Number(r.total) || 0;  // qty from CANT column — allow 0
-      if (qty === 0) return 0;
-      const refCost = costRefMap[normStr(r.codigo_producto)] ?? costRefMap[normStr(r.producto)];
-      return (refCost != null && refCost > 0)
-        ? refCost * qty           // centralized reference cost × qty (most accurate)
-        : Number(r.costo) * qty;  // unit cost from file (COSTO col K) × qty (CANT col L)
+      const qty = Number(r.total) || 0;
+      return qty === 0 ? 0 : Number(r.costo) * qty;
     };
 
     const totalCosto = sales.reduce((s, r) => s + rowCost(r), 0);
@@ -251,7 +231,7 @@ export function useDashboardData(filters: DashboardFilters, includePublic = fals
       topClients: topClients.map(([name, val]) => ({ name, value: Math.round(val), pct: Math.round((val / maxClient) * 100) })),
       topProducts: topProducts.map(([name, val]) => ({ name, value: Math.round(val), pct: Math.round((val / maxProd) * 100) })),
     };
-  }, [salesRaw, targetsRaw, productCostsRaw, filters, includePublic]);
+  }, [salesRaw, targetsRaw, filters, includePublic]);
 
   return { data: filtered, loading };
 }
