@@ -11,6 +11,7 @@ type Product = {
   name: string;
   product_line: string;
   cost_pyg: number;
+  is_critical?: boolean;
 };
 
 type InventoryMap = Record<string, number>; // productId -> stock
@@ -44,7 +45,7 @@ export default function Compras() {
       // 1. Fetch Alcon Products
       const { data: productsData, error: productsError } = await supabase
         .from("products")
-        .select("id, sku, name, product_line, cost_pyg");
+        .select("id, sku, name, product_line, cost_pyg, is_critical");
         
       if (productsError) throw productsError;
       setProducts(productsData || []);
@@ -120,9 +121,15 @@ export default function Compras() {
         targetStock,
         suggestedQty,
         finalQty,
-        estimatedCost
+        estimatedCost,
+        isAtRisk: p.is_critical && currentStock <= monthlyAvgSales // Risco se estoque atual cobre 1 mês ou menos
       };
-    }).sort((a, b) => b.suggestedQty - a.suggestedQty); // Sort by highest needed
+    }).sort((a, b) => {
+      // Prioritize critical products at risk first, then by suggestedQty
+      if (a.isAtRisk && !b.isAtRisk) return -1;
+      if (!a.isAtRisk && b.isAtRisk) return 1;
+      return b.suggestedQty - a.suggestedQty;
+    });
   }, [products, inventory, salesData, targetMonths, manualAdjustments]);
 
   const filteredData = tableData.filter(p => {
@@ -167,13 +174,14 @@ export default function Compras() {
 
   const totalEstimatedCost = tableData.reduce((acc, curr) => acc + curr.estimatedCost, 0);
   const totalItemsToBuy = tableData.filter(t => t.finalQty > 0).length;
+  const criticalItemsAtRisk = tableData.filter(t => t.isAtRisk).length;
 
   return (
     <div className="space-y-6 animate-slide-in">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
         <div>
           <h1 className="text-3xl font-display font-black text-foreground tracking-tight">Compras Inteligentes</h1>
-          <p className="text-sm text-muted-foreground mt-1">Sugerencia de pedidos basada en inventario y run-rate histórico</p>
+          <p className="text-sm text-muted-foreground mt-1">Sugerencia de pedidos y control de criticidad</p>
         </div>
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-2 bg-card border border-border p-2 rounded-xl shadow-sm">
@@ -197,23 +205,32 @@ export default function Compras() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-6 backdrop-blur-md relative overflow-hidden">
           <div className="absolute top-0 right-0 p-4 opacity-10"><ShoppingCart size={80} /></div>
           <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-500/70">Total Pedido Estimado</p>
           <h2 className="text-3xl font-display font-black text-foreground mt-1">
             ₲ {totalEstimatedCost.toLocaleString()}
           </h2>
-          <p className="text-xs text-muted-foreground font-medium mt-2">Para mantener {targetMonths} meses de cobertura</p>
+          <p className="text-xs text-muted-foreground font-medium mt-2">Para {targetMonths} meses de cobertura</p>
         </div>
 
-        <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-6 backdrop-blur-md relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-4 opacity-10"><AlertTriangle size={80} /></div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-amber-500/70">SKUs a Comprar</p>
+        <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-6 backdrop-blur-md relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-4 opacity-10"><Package size={80} /></div>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-blue-500/70">SKUs a Comprar</p>
           <h2 className="text-3xl font-display font-black text-foreground mt-1">
             {totalItemsToBuy} <span className="text-lg font-medium text-muted-foreground">ítems</span>
           </h2>
-          <p className="text-xs text-muted-foreground font-medium mt-2">Productos con estoque abaixo do target ideal</p>
+          <p className="text-xs text-muted-foreground font-medium mt-2">Productos por debajo del target</p>
+        </div>
+
+        <div className={cn("rounded-2xl border p-6 backdrop-blur-md relative overflow-hidden transition-colors", criticalItemsAtRisk > 0 ? "border-destructive/30 bg-destructive/10" : "border-muted bg-muted/5")}>
+          <div className="absolute top-0 right-0 p-4 opacity-10"><AlertTriangle size={80} /></div>
+          <p className={cn("text-[10px] font-bold uppercase tracking-widest", criticalItemsAtRisk > 0 ? "text-destructive" : "text-muted-foreground")}>SKUs Críticos en Riesgo</p>
+          <h2 className={cn("text-3xl font-display font-black mt-1", criticalItemsAtRisk > 0 ? "text-destructive animate-pulse" : "text-foreground")}>
+            {criticalItemsAtRisk}
+          </h2>
+          <p className="text-xs text-muted-foreground font-medium mt-2">Cobertura menor a 1 mes</p>
         </div>
       </div>
 
@@ -272,21 +289,31 @@ export default function Compras() {
                 <tr><td colSpan={6} className="py-20 text-center text-muted-foreground italic">No se encontraron productos</td></tr>
               ) : (
                 filteredData.map((p) => (
-                  <tr key={p.id} className={cn("hover:bg-muted/30 transition-colors group", p.finalQty > 0 ? "bg-primary/5" : "")}>
+                  <tr key={p.id} className={cn("hover:bg-muted/30 transition-colors group", p.isAtRisk ? "bg-destructive/5" : p.finalQty > 0 ? "bg-primary/5" : "")}>
                     <td className="px-4 py-3">
-                      <div className="font-mono text-xs text-primary font-bold">{p.sku}</div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs text-primary font-bold">{p.sku}</span>
+                        {p.is_critical && (
+                          <span className={cn("text-[9px] font-black px-1.5 rounded uppercase", p.isAtRisk ? "bg-destructive text-white animate-pulse" : "bg-orange-500/20 text-orange-600 border border-orange-500/30")}>
+                            {p.isAtRisk ? "¡PELIGRO!" : "Crítico"}
+                          </span>
+                        )}
+                      </div>
                       <div className="font-semibold text-foreground text-xs mt-0.5">{p.name}</div>
                     </td>
                     <td className="px-4 py-3 text-right font-medium">
                       {p.monthlyAvgSales.toFixed(1)}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <span className={cn(
-                        "font-black px-2 py-1 rounded",
-                        p.currentStock <= p.monthlyAvgSales ? "bg-rose-500/10 text-rose-500" : "text-foreground"
-                      )}>
-                        {p.currentStock}
-                      </span>
+                      <div className="flex items-center justify-end gap-2">
+                        {p.isAtRisk && <AlertTriangle className="h-4 w-4 text-destructive animate-pulse" />}
+                        <span className={cn(
+                          "font-black px-2 py-1 rounded",
+                          p.isAtRisk ? "bg-destructive/20 text-destructive" : p.currentStock <= p.monthlyAvgSales ? "bg-rose-500/10 text-rose-500" : "text-foreground"
+                        )}>
+                          {p.currentStock}
+                        </span>
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-right font-medium text-muted-foreground">
                       {p.targetStock}
