@@ -16,6 +16,7 @@ const Index = lazy(() => import("./pages/Index"));
 const VisitadorDashboard = lazy(() => import("./pages/VisitadorDashboard"));
 const Inventario = lazy(() => import("./pages/Inventario"));
 const CRM = lazy(() => import("./pages/CRM"));
+const Compras = lazy(() => import("./pages/Compras"));
 const Pedidos = lazy(() => import("./pages/Pedidos"));
 const Visitas = lazy(() => import("./pages/Visitas"));
 const InviteUsers = lazy(() => import("./pages/InviteUsers"));
@@ -145,6 +146,7 @@ function ProtectedRoutes() {
           <Route path="/crm/intelligence/:id" element={<RoleGuard allow={["gerente", "visitador"]}><MedicalIntelligence /></RoleGuard>} />
           <Route path="/visitas" element={<RoleGuard allow={["gerente", "visitador"]}><Visitas /></RoleGuard>} />
           <Route path="/sfa/admin" element={<RoleGuard allow={["gerente"]}><SfaAdmin /></RoleGuard>} />
+          <Route path="/compras" element={<RoleGuard allow={["gerente"]}><Compras /></RoleGuard>} />
           <Route path="/pedidos" element={<RoleGuard allow={["gerente", "visitador", "bodega", "expedicion"]}><Pedidos /></RoleGuard>} />
           <Route path="/inventario" element={<RoleGuard allow={["gerente", "bodega", "expedicion"]}><Inventario /></RoleGuard>} />
           <Route path="/ventas" element={<RoleGuard allow={["gerente"]}><VentasTargets /></RoleGuard>} />

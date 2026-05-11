@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Package, Users, ClipboardList, MapPin, Truck,
   TrendingUp, Settings, ChevronLeft, ChevronRight, LogOut, Shield,
   FileDown, FileText, BarChart2, PieChart, ClipboardCheck, UserCog,
-  BarChart3, Menu, X, Home, Warehouse, Activity, Clock, Moon, Sun, Eye,
+  BarChart3, Menu, X, Home, Warehouse, Activity, Clock, Moon, Sun, Eye, ShoppingCart
 } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { cn } from "@/lib/utils";
@@ -25,6 +25,7 @@ const menuGroups: Record<"alcon" | "conofta", MenuGroup[]> = {
       label: "Operaciones",
       items: [
         { to: "/inventario", icon: Package, label: "Bodega & Inventario", roles: ["gerente", "bodega"] },
+        { to: "/compras", icon: ShoppingCart, label: "Compras Inteligentes", roles: ["gerente"] },
         { to: "/crm", icon: Users, label: "CRM & Clientes", roles: ["gerente", "visitador"] },
         { to: "/pedidos", icon: ClipboardList, label: "Pedidos", roles: ["gerente", "visitador", "bodega", "expedicion"] },
         { to: "/visitas", icon: MapPin, label: "Visitas (SFA)", roles: ["gerente", "visitador"] },
