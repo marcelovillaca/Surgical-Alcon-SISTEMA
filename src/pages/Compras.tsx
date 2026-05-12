@@ -249,22 +249,25 @@ export default function Compras() {
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
         const data = XLSX.utils.sheet_to_json(ws) as any[];
+        toast({ title: "Procesando...", description: `Actualizando costos de productos.` });
 
-        toast({ title: "Procesando...", description: `Actualizando costos de ${data.length} productos.` });
-
+        let updateCount = 0;
         for (const row of data) {
-          const sku = row.SKU || row.sku;
-          const cost = row.Costo || row.costo || row.cost_pyg;
+          // Flexible mapping for cost import
+          const sku = String(row.SKU || row.sku || row.Codigo || row[0] || "").trim().toUpperCase();
+          const cost = Number(row.Costo || row.costo || row.cost_pyg || row[1] || 0);
           
-          if (sku && cost) {
-            await supabase
+          if (sku && !isNaN(cost) && cost > 0) {
+            const { error } = await supabase
               .from("products")
               .update({ cost_pyg: cost })
               .eq("sku", sku);
+            
+            if (!error) updateCount++;
           }
         }
 
-        toast({ title: "Éxito", description: "Costos actualizados correctamente." });
+        toast({ title: "Costos Actualizados", description: `Se actualizaron los costos de ${updateCount} productos.` });
         fetchData();
       } catch (err) {
         toast({ title: "Error", description: "No se pudo procesar el archivo.", variant: "destructive" });
@@ -485,7 +488,7 @@ export default function Compras() {
                   className="w-full bg-background border border-border rounded-lg pl-9 pr-3 py-1.5 text-xs focus:ring-1 focus:ring-primary outline-none" 
                 />
               </div>
-              <p className="text-[10px] font-bold text-muted-foreground">{stockValueData.data.length} SKUs con stock</p>
+              <p className="text-[10px] font-bold text-muted-foreground">{stockValueData.items.length} SKUs con stock</p>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -494,16 +497,19 @@ export default function Compras() {
                     <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-[10px]">Producto</th>
                     <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-[10px] text-right">Stock</th>
                     <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-[10px] text-right">Costo Unit.</th>
-                    <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-[10px] text-right">Valor Total</th>
+                    <th className="px-4 py-3 font-bold text-primary uppercase text-[10px] text-right">Valor Total</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/50">
                   {stockValueData.data
-                    .filter(p => p.name.toLowerCase().includes(search.toLowerCase()) || p.sku.toLowerCase().includes(search.toLowerCase()))
+                    .filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.sku.toLowerCase().includes(search.toLowerCase()))
                     .map(p => (
                     <tr key={p.id} className="hover:bg-muted/30 transition-colors">
                       <td className="px-4 py-3">
-                        <div className="font-mono text-[10px] text-primary font-bold">{p.sku}</div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-[9px] text-muted-foreground">{p.internal_code}</span>
+                          <span className="font-mono text-[10px] text-primary font-bold">{p.sku}</span>
+                        </div>
                         <div className="font-semibold text-xs">{p.name}</div>
                         {(p.dioptria || p.toricidad) && (
                           <div className="flex gap-1 mt-0.5">
@@ -513,8 +519,8 @@ export default function Compras() {
                         )}
                       </td>
                       <td className="px-4 py-3 text-right font-bold">{p.stock}</td>
-                      <td className="px-4 py-3 text-right text-muted-foreground">₲ {p.unitCost.toLocaleString()}</td>
-                      <td className="px-4 py-3 text-right font-black text-foreground">₲ {p.totalProdValue.toLocaleString()}</td>
+                      <td className="px-4 py-3 text-right text-muted-foreground">₲ {(p.unitCost || 0).toLocaleString()}</td>
+                      <td className="px-4 py-3 text-right font-black text-primary">₲ {(p.totalProdValue || 0).toLocaleString()}</td>
                     </tr>
                   ))}
                 </tbody>
