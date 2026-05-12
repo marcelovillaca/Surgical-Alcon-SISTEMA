@@ -273,48 +273,19 @@ export default function Compras() {
     reader.readAsBinaryString(file);
   };
 
-  const parseAlconSku = (sku: string) => {
-    let dioptria = "";
-    let toricidad = "";
-    let basePrice = 0;
-    let line = "rest_of_portfolio";
-    
-    sku = sku.toUpperCase().trim();
+    // 3. Match with Product Line (Prices ignored per user request)
+    if (sku.startsWith("CNA0T0")) { line = "total_monofocals"; }
+    else if (sku.startsWith("SA60AT")) { line = "total_monofocals"; }
+    else if (sku.startsWith("SN60WF")) { line = "total_monofocals"; }
+    else if (sku.startsWith("AU00T0V")) { line = "total_monofocals"; }
+    else if (sku.startsWith("MA60AC")) { line = "total_monofocals"; }
+    else if (sku.startsWith("SN6AT")) { line = "total_monofocals"; }
+    else if (sku.startsWith("TFNT00")) { line = "atiols"; }
+    else if (sku.startsWith("TFNT")) { line = "atiols"; }
+    else if (sku.startsWith("DFT015")) { line = "atiols"; }
+    else if (sku.startsWith("DFT")) { line = "atiols"; }
 
-    // 1. Extract Toricity
-    const toricMatch = sku.match(/T([1-9])/);
-    if (toricMatch) {
-      toricidad = "T" + toricMatch[1];
-    }
-
-    // 2. Extract Diopter
-    if (sku.includes(".")) {
-      const afterDot = sku.split(".")[1].replace(/[^0-9]/g, "").substring(0, 3);
-      if (afterDot.length >= 2) {
-        const dVal = parseInt(afterDot);
-        if (!isNaN(dVal)) dioptria = (dVal / 10).toFixed(1);
-      }
-    } else {
-      const last3 = sku.slice(-3);
-      if (/^\d{3}$/.test(last3)) {
-        const dVal = parseInt(last3);
-        if (!isNaN(dVal)) dioptria = (dVal / 10).toFixed(1);
-      }
-    }
-
-    // 3. Match with Reference Table
-    if (sku.startsWith("CNA0T0")) { basePrice = 1520000; line = "total_monofocals"; }
-    else if (sku.startsWith("SA60AT")) { basePrice = 560000; line = "total_monofocals"; }
-    else if (sku.startsWith("SN60WF")) { basePrice = 800000; line = "total_monofocals"; }
-    else if (sku.startsWith("AU00T0V")) { basePrice = 1370000; line = "total_monofocals"; }
-    else if (sku.startsWith("MA60AC")) { basePrice = 600000; line = "total_monofocals"; }
-    else if (sku.startsWith("SN6AT")) { basePrice = 2670000; line = "total_monofocals"; }
-    else if (sku.startsWith("TFNT00")) { basePrice = 6470000; line = "atiols"; }
-    else if (sku.startsWith("TFNT")) { basePrice = 8500000; line = "atiols"; }
-    else if (sku.startsWith("DFT015")) { basePrice = 6470000; line = "atiols"; }
-    else if (sku.startsWith("DFT")) { basePrice = 8500000; line = "atiols"; }
-
-    return { dioptria, toricidad, basePrice, line };
+    return { dioptria, toricidad, line };
   };
 
   const handleStockSync = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -362,12 +333,11 @@ export default function Compras() {
               // Check if already in surpriseSKUs
               let surprise = surpriseSKUs.find(s => s.sku === sku);
               if (!surprise) {
-                const { dioptria, toricidad, basePrice, line } = parseAlconSku(sku);
+                const { dioptria, toricidad, line } = parseAlconSku(sku);
                 surpriseSKUs.push({
                   sku,
                   name,
                   product_line: line,
-                  price_base_pyg: basePrice,
                   dioptria: dioptria || null,
                   toricidad: toricidad || null,
                   stock
@@ -417,7 +387,6 @@ export default function Compras() {
             sku: p.sku,
             name: p.name,
             product_line: p.product_line,
-            price_base_pyg: p.price_base_pyg || 0,
             dioptria: p.dioptria,
             toricidad: p.toricidad,
             active: true
