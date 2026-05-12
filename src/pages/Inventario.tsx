@@ -161,14 +161,15 @@ export default function Inventario() {
         const data = XLSX.utils.sheet_to_json(ws) as any[];
 
         setLoading(true);
-        toast({ title: "Importando catálogo...", description: `Procesando ${data.length} productos.` });
+        toast({ title: "Importando catálogo...", description: `Procesando ${data.length} produtos.` });
 
         for (const row of data) {
-          const sku = String(row.SKU || row.sku || "").trim().toUpperCase();
-          const name = row.NOMBRE || row.nombre || row.name || sku;
+          // Flexible mapping based on the provided photo (Alcon Code | Product Description)
+          const sku = String(row["Alcon Code"] || row.SKU || row.sku || row[0] || "").trim().toUpperCase();
+          const name = String(row["Product Description"] || row.NOMBRE || row.nombre || row.name || row[1] || sku).trim();
           const line = row.LINEA || row.linea || row.product_line || "rest_of_portfolio";
           
-          if (sku) {
+          if (sku && sku !== "ALCON CODE") {
             const { dioptria, toricidad } = parseAlconSku(sku);
             await supabase
               .from("products")
@@ -176,7 +177,7 @@ export default function Inventario() {
                 sku,
                 name,
                 description: row.DESCRIPCION || row.descripcion || "",
-                product_line: line,
+                product_line: sku.startsWith("AU00") || sku.startsWith("SN") ? "total_monofocals" : (sku.startsWith("TF") ? "atiols" : "rest_of_portfolio"),
                 cost_pyg: Number(row.COSTO || row.cost_pyg || 0),
                 price_base_pyg: Number(row.PRECIO || row.price_base_pyg || 0),
                 dioptria: dioptria || null,
