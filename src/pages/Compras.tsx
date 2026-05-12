@@ -270,6 +270,33 @@ export default function Compras() {
     reader.readAsBinaryString(file);
   };
 
+  const parseAlconSku = (sku: string) => {
+    let dioptria = "";
+    let toricidad = "";
+    
+    sku = sku.toUpperCase().trim();
+
+    if (sku.startsWith("AU00T0V")) {
+      const dVal = parseInt(sku.substring(7));
+      if (!isNaN(dVal)) dioptria = (dVal / 10).toFixed(1);
+    } else if (sku.startsWith("SN60WF.")) {
+      const dVal = parseInt(sku.substring(7));
+      if (!isNaN(dVal)) dioptria = (dVal / 10).toFixed(1);
+    } else if (sku.startsWith("TFNT")) {
+      // TFNT[T][X].[DDD]
+      const toricityDigit = sku.charAt(4);
+      if (toricityDigit !== "0" && !isNaN(parseInt(toricityDigit))) {
+        toricidad = "T" + toricityDigit;
+      }
+      const parts = sku.split(".");
+      if (parts.length > 1) {
+        const dVal = parseInt(parts[1]);
+        if (!isNaN(dVal)) dioptria = (dVal / 10).toFixed(1);
+      }
+    }
+    return { dioptria, toricidad };
+  };
+
   const handleStockSync = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -314,13 +341,16 @@ export default function Compras() {
             let product = currentProducts.find(p => p.sku === sku);
             
             if (!product) {
+              const { dioptria, toricidad } = parseAlconSku(sku);
               // Auto-create product if not exists
               const { data: newProd, error } = await supabase
                 .from("products")
                 .insert([{
                   sku: sku,
                   name: name,
-                  product_line: "rest_of_portfolio",
+                  product_line: sku.startsWith("AU00") || sku.startsWith("SN") ? "total_monofocals" : (sku.startsWith("TF") ? "atiols" : "rest_of_portfolio"),
+                  dioptria: dioptria || null,
+                  toricidad: toricidad || null,
                   active: true
                 }])
                 .select()
@@ -455,6 +485,12 @@ export default function Compras() {
                       <td className="px-4 py-3">
                         <div className="font-mono text-[10px] text-primary font-bold">{p.sku}</div>
                         <div className="font-semibold text-xs">{p.name}</div>
+                        {(p.dioptria || p.toricidad) && (
+                          <div className="flex gap-1 mt-0.5">
+                            {p.dioptria && <span className="text-[8px] font-bold bg-primary/10 text-primary px-1 rounded">D: {p.dioptria}</span>}
+                            {p.toricidad && <span className="text-[8px] font-bold bg-blue-500/10 text-blue-500 px-1 rounded">T: {p.toricidad}</span>}
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-right font-bold">{p.stock}</td>
                       <td className="px-4 py-3 text-right text-muted-foreground">₲ {p.unitCost.toLocaleString()}</td>
@@ -645,6 +681,12 @@ export default function Compras() {
                           {p.is_critical && <span className="text-[8px] font-black bg-orange-500 text-white px-1 rounded shadow-sm">CRÍTICO</span>}
                         </div>
                         <div className="font-semibold text-xs mt-0.5">{p.name}</div>
+                        {(p.dioptria || p.toricidad) && (
+                          <div className="flex gap-1 mt-0.5">
+                            {p.dioptria && <span className="text-[8px] font-bold bg-primary/10 text-primary px-1 rounded">D: {p.dioptria}</span>}
+                            {p.toricidad && <span className="text-[8px] font-bold bg-blue-500/10 text-blue-500 px-1 rounded">T: {p.toricidad}</span>}
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-right font-medium">{p.monthlyAvgSales.toFixed(1)}</td>
                       <td className="px-4 py-3 text-right">
