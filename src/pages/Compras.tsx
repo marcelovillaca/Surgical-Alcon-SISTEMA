@@ -4,6 +4,7 @@ import {
   Package, Search, ShoppingCart, Loader2, TrendingUp, 
   AlertTriangle, Download, Calendar, DollarSign,
   Filter, CheckCircle2, AlertCircle, FileSpreadsheet, Upload, X, Trash2, Save
+
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
@@ -13,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 type Product = {
   id: string;
   sku: string;
+  internal_code: string;
   name: string;
   product_line: string;
   cost_pyg: number;
@@ -64,7 +66,8 @@ export default function Compras() {
       // 1. Fetch Alcon Products
       const { data: productsData, error: productsError } = await supabase
         .from("products")
-        .select("id, sku, name, product_line, cost_pyg, is_critical");
+        .select("id, sku, internal_code, name, product_line, cost_pyg, is_critical");
+
         
       if (productsError) throw productsError;
       setProducts(productsData || []);
@@ -268,6 +271,7 @@ export default function Compras() {
         }
 
         toast({ title: "Costos Actualizados", description: `Se actualizaron los costos de ${updateCount} productos.` });
+
         fetchData();
       } catch (err) {
         toast({ title: "Error", description: "No se pudo procesar el archivo.", variant: "destructive" });
@@ -275,6 +279,24 @@ export default function Compras() {
     };
     reader.readAsBinaryString(file);
   };
+
+  const parseAlconSku = (sku: string) => {
+    let dioptria = "";
+    let toricidad = "";
+    let line = "rest_of_portfolio";
+
+    // 1. Extract Diopter (last digits after a separator or at the end)
+    const dioptMatch = sku.match(/[.V](\d{2,3})$/) || sku.match(/(\d{3})$/);
+    if (dioptMatch) {
+      const val = dioptMatch[1];
+      dioptria = val.length === 3 ? `${val.substring(0, 2)}.${val.substring(2)}` : val;
+    }
+
+    // 2. Extract Toricity (T1 to T9)
+    const toricMatch = sku.match(/T([1-9])/);
+    if (toricMatch) {
+      toricidad = `T${toricMatch[1]}`;
+    }
 
     // 3. Match with Product Line (Prices ignored per user request)
     if (sku.startsWith("CNA0T0")) { line = "total_monofocals"; }
@@ -417,6 +439,8 @@ export default function Compras() {
     }
   }; };
 
+=======
+>>>>>>> main
   if (loading && products.length === 0) {
     return (
       <div className="flex h-[60vh] items-center justify-center">
@@ -488,7 +512,8 @@ export default function Compras() {
                   className="w-full bg-background border border-border rounded-lg pl-9 pr-3 py-1.5 text-xs focus:ring-1 focus:ring-primary outline-none" 
                 />
               </div>
-              <p className="text-[10px] font-bold text-muted-foreground">{stockValueData.items.length} SKUs con stock</p>
+              <p className="text-[10px] font-bold text-muted-foreground">{stockValueData.data.length} SKUs con stock</p>
+
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -498,11 +523,13 @@ export default function Compras() {
                     <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-[10px] text-right">Stock</th>
                     <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-[10px] text-right">Costo Unit.</th>
                     <th className="px-4 py-3 font-bold text-primary uppercase text-[10px] text-right">Valor Total</th>
+
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/50">
                   {stockValueData.data
                     .filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.sku.toLowerCase().includes(search.toLowerCase()))
+
                     .map(p => (
                     <tr key={p.id} className="hover:bg-muted/30 transition-colors">
                       <td className="px-4 py-3">
@@ -511,16 +538,17 @@ export default function Compras() {
                           <span className="font-mono text-[10px] text-primary font-bold">{p.sku}</span>
                         </div>
                         <div className="font-semibold text-xs">{p.name}</div>
-                        {(p.dioptria || p.toricidad) && (
+                        {(p as any).dioptria || (p as any).toricidad ? (
                           <div className="flex gap-1 mt-0.5">
-                            {p.dioptria && <span className="text-[8px] font-bold bg-primary/10 text-primary px-1 rounded">D: {p.dioptria}</span>}
-                            {p.toricidad && <span className="text-[8px] font-bold bg-blue-500/10 text-blue-500 px-1 rounded">T: {p.toricidad}</span>}
+                            {(p as any).dioptria && <span className="text-[8px] font-bold bg-primary/10 text-primary px-1 rounded">D: {(p as any).dioptria}</span>}
+                            {(p as any).toricidad && <span className="text-[8px] font-bold bg-blue-500/10 text-blue-500 px-1 rounded">T: {(p as any).toricidad}</span>}
                           </div>
-                        )}
+                        ) : null}
                       </td>
                       <td className="px-4 py-3 text-right font-bold">{p.stock}</td>
                       <td className="px-4 py-3 text-right text-muted-foreground">₲ {(p.unitCost || 0).toLocaleString()}</td>
                       <td className="px-4 py-3 text-right font-black text-primary">₲ {(p.totalProdValue || 0).toLocaleString()}</td>
+
                     </tr>
                   ))}
                 </tbody>
@@ -640,6 +668,7 @@ export default function Compras() {
                 Reset DB
               </button>
             )}
+
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -703,16 +732,19 @@ export default function Compras() {
                     <tr key={p.id} className={cn("hover:bg-muted/30 transition-colors group", p.finalQty > 0 ? "bg-emerald-500/[0.03]" : "")}>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
+                          <span className="font-mono text-[9px] text-muted-foreground">{p.internal_code}</span>
+
                           <span className="font-mono text-[10px] text-primary font-bold">{p.sku}</span>
                           {p.is_critical && <span className="text-[8px] font-black bg-orange-500 text-white px-1 rounded shadow-sm">CRÍTICO</span>}
                         </div>
                         <div className="font-semibold text-xs mt-0.5">{p.name}</div>
-                        {(p.dioptria || p.toricidad) && (
+                        {(p as any).dioptria || (p as any).toricidad ? (
                           <div className="flex gap-1 mt-0.5">
-                            {p.dioptria && <span className="text-[8px] font-bold bg-primary/10 text-primary px-1 rounded">D: {p.dioptria}</span>}
-                            {p.toricidad && <span className="text-[8px] font-bold bg-blue-500/10 text-blue-500 px-1 rounded">T: {p.toricidad}</span>}
+                            {(p as any).dioptria && <span className="text-[8px] font-bold bg-primary/10 text-primary px-1 rounded">D: {(p as any).dioptria}</span>}
+                            {(p as any).toricidad && <span className="text-[8px] font-bold bg-blue-500/10 text-blue-500 px-1 rounded">T: {(p as any).toricidad}</span>}
                           </div>
-                        )}
+                        ) : null}
+
                       </td>
                       <td className="px-4 py-3 text-right font-medium">{p.monthlyAvgSales.toFixed(1)}</td>
                       <td className="px-4 py-3 text-right">
@@ -753,7 +785,7 @@ export default function Compras() {
                   Nuevos Productos Detectados
                 </h2>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Se encontraron {pendingProducts.length} SKUs en el Excel que não estão no sistema. Revise e confirme sua inclusão.
+                  Se encontraron {pendingProducts.length} SKUs en el Excel que não están en el sistema. Revise y confirme su inclusión.
                 </p>
               </div>
               <button onClick={() => setShowPendingModal(false)} className="rounded-full p-2 hover:bg-muted transition-colors">
@@ -820,17 +852,16 @@ export default function Compras() {
             <div className="p-6 border-t border-border flex justify-end gap-3 bg-muted/10">
               <button 
                 onClick={() => setShowPendingModal(false)}
-                className="px-6 py-2.5 text-sm font-bold text-muted-foreground hover:bg-muted rounded-xl transition-all"
+                className="px-6 py-2 rounded-xl border border-border text-sm font-bold hover:bg-muted transition-colors"
               >
-                Cancelar Carga
+                Cancelar
               </button>
               <button 
                 onClick={handleApproveSurprise}
-                disabled={loading}
-                className="flex items-center gap-2 rounded-xl gradient-emerald px-8 py-2.5 text-sm font-bold text-secondary-foreground shadow-lg hover:scale-[1.02] active:scale-95 disabled:opacity-50"
+                className="px-8 py-2 rounded-xl gradient-emerald text-sm font-bold text-secondary-foreground flex items-center gap-2 shadow-lg"
               >
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                Confirmar e Incorporar Productos
+                <Save className="h-4 w-4" />
+                Confirmar e Incluir Productos
               </button>
             </div>
           </div>

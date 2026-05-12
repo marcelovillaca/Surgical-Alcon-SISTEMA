@@ -11,6 +11,7 @@ import { RefreshCw, FileUp, FileCheck, History, AlertCircle, Upload, Download } 
 type Product = {
   id: string;
   sku: string;
+  internal_code: string;
   name: string;
   description: string;
   product_line: string;
@@ -21,6 +22,7 @@ type Product = {
   dioptria?: string;
   toricidad?: string;
   total_stock?: number;
+  is_critical?: boolean;
 };
 
 const PRODUCT_LINES = [
@@ -60,6 +62,7 @@ export default function Inventario() {
   const [unit, setUnit] = useState("unidad");
   const [prodDioptria, setProdDioptria] = useState("");
   const [prodToricidad, setProdToricidad] = useState("");
+  const [isCritical, setIsCritical] = useState(false);
 
   // Lot form state
   const [lotNumber, setLotNumber] = useState("");
@@ -207,6 +210,7 @@ export default function Inventario() {
     setPrice(0);
     setUnit("unidad");
     setEditingId(null);
+    setIsCritical(false);
     setShowForm(false);
   };
 
@@ -222,6 +226,7 @@ export default function Inventario() {
       unit_of_measure: unit,
       dioptria: (line === "total_monofocals" || line === "atiols") ? prodDioptria : null,
       toricidad: (line === "total_monofocals" || line === "atiols") ? prodToricidad : null,
+      is_critical: isCritical,
     };
 
     if (editingId) {
@@ -286,6 +291,7 @@ export default function Inventario() {
     setUnit(p.unit_of_measure);
     setProdDioptria(p.dioptria || "");
     setProdToricidad(p.toricidad || "");
+    setIsCritical(p.is_critical || false);
     setShowForm(true);
   };
 
@@ -451,6 +457,20 @@ export default function Inventario() {
                 </div>
               )}
 
+              <div className="flex items-center gap-2 p-3 bg-orange-500/5 rounded-xl border border-orange-500/20">
+                <input 
+                  type="checkbox" 
+                  id="isCritical"
+                  checked={isCritical}
+                  onChange={e => setIsCritical(e.target.checked)}
+                  className="h-4 w-4 rounded border-border text-primary focus:ring-primary accent-orange-500"
+                />
+                <label htmlFor="isCritical" className="text-xs font-bold text-orange-600 flex items-center gap-1 cursor-pointer">
+                  <AlertTriangle className="h-3 w-3" />
+                  Marcar como Producto Crítico (Alta prioridad de reposición)
+                </label>
+              </div>
+
               <div className="flex justify-end gap-3 mt-6">
                 <button type="button" onClick={resetForm} className="px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-muted rounded-lg">Cancelar</button>
                 <button type="submit" className="flex items-center gap-2 rounded-lg gradient-emerald px-6 py-2 text-sm font-bold text-secondary-foreground">
@@ -519,10 +539,14 @@ export default function Inventario() {
             ) : (
               filtered.map((p) => (
                 <tr key={p.id} className="hover:bg-muted/30 transition-colors group">
-                  <td className="px-4 py-4 font-mono text-xs text-primary font-bold">{p.sku}</td>
+                  <td className="px-4 py-4">
+                    <div className="font-mono text-[10px] text-muted-foreground uppercase">{p.internal_code}</div>
+                    <div className="font-mono text-xs text-primary font-bold">{p.sku}</div>
+                  </td>
                   <td className="px-4 py-4">
                     <div className="font-semibold text-foreground">{p.name}</div>
                     <div className="flex items-center gap-2 mt-0.5">
+                      {p.is_critical && <span className="text-[9px] font-black bg-orange-500 text-white px-1.5 rounded uppercase flex items-center gap-1 shadow-sm"><AlertTriangle className="h-2 w-2" /> Crítico</span>}
                       {p.dioptria && <span className="text-[9px] font-black bg-primary/10 text-primary px-1.5 rounded border border-primary/20">D: {p.dioptria}</span>}
                       {p.toricidad && <span className="text-[9px] font-black bg-blue-500/10 text-blue-500 px-1.5 rounded border border-blue-500/20">T: {p.toricidad}</span>}
                     </div>
