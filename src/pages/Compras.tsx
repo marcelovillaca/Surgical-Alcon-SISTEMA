@@ -51,6 +51,7 @@ export default function Compras() {
   const [search, setSearch] = useState("");
   const [filterLine, setFilterLine] = useState<string | null>(null);
   const [manualAdjustments, setManualAdjustments] = useState<Record<string, number>>({});
+  const [isUsingImportedStock, setIsUsingImportedStock] = useState(false);
   const { toast } = useToast();
 
   const fetchData = async () => {
@@ -269,6 +270,100 @@ export default function Compras() {
     reader.readAsBinaryString(file);
   };
 
+  const handleStockSync = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: "binary" });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
+
+        let newStockMap: InventoryMap = {};
+        let importCount = 0;
+        let newProductsCount = 0;
+        const currentProducts = [...products];
+
+        // Identify header row (format DEP 33 has title at top)
+        let headerRowIndex = 0;
+        for (let i = 0; i < Math.min(15, data.length); i++) {
+          if (data[i] && String(data[i][1] || "").toUpperCase().includes("PRODUCTO")) {
+            headerRowIndex = i;
+            break;
+          }
+        }
+
+        // Process rows after header
+        for (let i = headerRowIndex + 1; i < data.length; i++) {
+          const row = data[i];
+          if (!row || row.length < 5) continue;
+
+          // Format: [1]=PRODUCTO (First word is SKU), [4]=STOCK ACTUAL
+          const rawProducto = String(row[1] || "").trim();
+          if (!rawProducto || rawProducto.toUpperCase().includes("ALCON")) continue;
+
+          const sku = rawProducto.split(" ")[0].toUpperCase();
+          const name = rawProducto.split(" ").slice(1).join(" ") || sku;
+          const stock = Number(row[4]); // Stock Actual
+
+          if (sku && !isNaN(stock)) {
+            let product = currentProducts.find(p => p.sku === sku);
+            
+            if (!product) {
+              // Auto-create product if not exists
+              const { data: newProd, error } = await supabase
+                .from("products")
+                .insert([{
+                  sku: sku,
+                  name: name,
+                  product_line: "rest_of_portfolio",
+                  active: true
+                }])
+                .select()
+                .single();
+              
+              if (!error && newProd) {
+                product = newProd as any;
+                currentProducts.push(product!);
+                newProductsCount++;
+              }
+            }
+
+            if (product) {
+              newStockMap[product.id] = (newStockMap[product.id] || 0) + stock;
+              importCount++;
+            }
+          }
+        }
+
+        // Zero stock for missing products
+        currentProducts.forEach(p => {
+          if (newStockMap[p.id] === undefined) {
+            newStockMap[p.id] = 0;
+          }
+        });
+
+        setInventory(newStockMap);
+        setIsUsingImportedStock(true);
+        if (newProductsCount > 0) fetchData();
+        
+        toast({ 
+          title: "Sincronización DEP 33 Completada", 
+          description: `Se procesaron ${importCount} registros. ${newProductsCount} productos nuevos creados.`,
+          variant: "default"
+        });
+
+      } catch (err) {
+        toast({ title: "Error", description: "No se pudo procesar el archivo Alcon.", variant: "destructive" });
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
   if (loading && products.length === 0) {
     return (
       <div className="flex h-[60vh] items-center justify-center">
@@ -470,6 +565,19 @@ export default function Compras() {
               <FileSpreadsheet className="h-4 w-4" />
               Exportar Pedido para Alcon
             </button>
+            <label className="cursor-pointer flex items-center gap-2 rounded-xl border border-primary bg-primary/10 px-5 py-2.5 text-sm font-bold text-primary shadow-sm hover:bg-primary/20 transition-all">
+              <Upload className="h-4 w-4" />
+              Sincronizar Stock (Excel)
+              <input type="file" className="hidden" accept=".xlsx,.xls" onChange={handleStockSync} />
+            </label>
+            {isUsingImportedStock && (
+              <button 
+                onClick={() => { setIsUsingImportedStock(false); fetchData(); }}
+                className="text-xs font-bold text-rose-500 hover:underline"
+              >
+                Reset DB
+              </button>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
