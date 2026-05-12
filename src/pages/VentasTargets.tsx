@@ -137,24 +137,32 @@ export default function VentasTargets() {
       if (tab === "ventas") {
         const { rows, errors, skipped } = parseSalesSheet(ws);
         if (errors.length > 0) { setStatusFor(tab, { type: "error", message: errors.join("\n") }); return; }
-        const insertRows = rows.map(r => {
+        const insertRows = [];
+        // Fetch current products to have a fallback for missing costs
+        const { data: currentProducts } = await supabase.from("products").select("sku, cost_pyg");
+        const productCostMap = new Map(currentProducts?.map(p => [p.sku, p.cost_pyg]) || []);
+
+        for (const r of rows) {
+          // If cost is missing or zero, use the current cost from products catalog as a snapshot fallback
+          let effectiveCost = r.costo;
+          if ((!effectiveCost || effectiveCost === 0) && r.codigo_producto) {
+            effectiveCost = productCostMap.get(r.codigo_producto) || 0;
+          }
+
           const row: any = {
             fecha: r.fecha, cod_cliente: r.cod_cliente, cliente: r.cliente,
             direccion: r.direccion || null, ciudad: r.ciudad, linea_de_producto: r.linea_de_producto,
             factura_nro: r.factura_nro, cod2: r.cod2 || null, codigo_producto: r.codigo_producto,
-            producto: r.producto, costo: r.costo, total: r.total,
+            producto: r.producto, costo: effectiveCost, total: r.total,
             monto_en: r.monto_en || "USD", monto_usd: r.monto_usd,
             vendedor: r.vendedor, uploaded_by: user.id
           };
           if (r.mercado) row.mercado = r.mercado;
-          return row;
-        });
+          insertRows.push(row);
+        }
 
         for (let i = 0; i < insertRows.length; i += 500) {
           const slice = insertRows.slice(i, i + 500);
-          // Plain INSERT — the user has already reviewed the data.
-          // No silent deduplication: every row from the spreadsheet is inserted as-is.
-          // If the table has old data, use "Limpiar" first to avoid DB-level duplicates.
           let { error } = await supabase.from("sales_details").insert(slice as any);
 
           if (error && (error.message.includes("mercado") || error.code === "PGRST204")) {
