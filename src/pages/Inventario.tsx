@@ -11,6 +11,7 @@ import { RefreshCw, FileUp, FileCheck, History, AlertCircle } from "lucide-react
 type Product = {
   id: string;
   sku: string;
+  internal_code: string;
   name: string;
   description: string;
   product_line: string;
@@ -460,7 +461,10 @@ export default function Inventario() {
             ) : (
               filtered.map((p) => (
                 <tr key={p.id} className="hover:bg-muted/30 transition-colors group">
-                  <td className="px-4 py-4 font-mono text-xs text-primary font-bold">{p.sku}</td>
+                  <td className="px-4 py-4">
+                    <div className="font-mono text-[10px] text-muted-foreground uppercase">{p.internal_code}</div>
+                    <div className="font-mono text-xs text-primary font-bold">{p.sku}</div>
+                  </td>
                   <td className="px-4 py-4">
                     <div className="font-semibold text-foreground">{p.name}</div>
                     <div className="flex items-center gap-2 mt-0.5">

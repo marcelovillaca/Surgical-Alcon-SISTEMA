@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 type Product = {
   id: string;
   sku: string;
+  internal_code: string;
   name: string;
   product_line: string;
   cost_pyg: number;
@@ -60,7 +61,7 @@ export default function Compras() {
       // 1. Fetch Alcon Products
       const { data: productsData, error: productsError } = await supabase
         .from("products")
-        .select("id, sku, name, product_line, cost_pyg, is_critical");
+        .select("id, sku, internal_code, name, product_line, cost_pyg, is_critical");
         
       if (productsError) throw productsError;
       setProducts(productsData || []);
@@ -358,7 +359,10 @@ export default function Compras() {
                     .map(p => (
                     <tr key={p.id} className="hover:bg-muted/30 transition-colors">
                       <td className="px-4 py-3">
-                        <div className="font-mono text-[10px] text-primary font-bold">{p.sku}</div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-[9px] text-muted-foreground">{p.internal_code}</span>
+                          <span className="font-mono text-[10px] text-primary font-bold">{p.sku}</span>
+                        </div>
                         <div className="font-semibold text-xs">{p.name}</div>
                       </td>
                       <td className="px-4 py-3 text-right font-bold">{p.stock}</td>
@@ -533,6 +537,7 @@ export default function Compras() {
                     <tr key={p.id} className={cn("hover:bg-muted/30 transition-colors group", p.finalQty > 0 ? "bg-emerald-500/[0.03]" : "")}>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
+                          <span className="font-mono text-[9px] text-muted-foreground">{p.internal_code}</span>
                           <span className="font-mono text-[10px] text-primary font-bold">{p.sku}</span>
                           {p.is_critical && <span className="text-[8px] font-black bg-orange-500 text-white px-1 rounded shadow-sm">CRÍTICO</span>}
                         </div>
