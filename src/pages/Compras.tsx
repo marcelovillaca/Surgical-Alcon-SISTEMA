@@ -1,9 +1,14 @@
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Package, Search, ShoppingCart, Loader2, TrendingUp, AlertTriangle, Download } from "lucide-react";
+import { 
+  Package, Search, ShoppingCart, Loader2, TrendingUp, 
+  AlertTriangle, Download, Calendar, DollarSign,
+  Filter, CheckCircle2, AlertCircle, FileSpreadsheet, Upload
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
 import { useToast } from "@/hooks/use-toast";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type Product = {
   id: string;
@@ -14,13 +19,17 @@ type Product = {
   is_critical?: boolean;
 };
 
+type InventoryLot = {
+  id: string;
+  product_id: string;
+  lot_number: string;
+  quantity: number;
+  expiry_date: string | null;
+  cost_unit_pyg: number;
+};
+
 type InventoryMap = Record<string, number>; // productId -> stock
 type SalesMap = Record<string, number>; // sku -> average monthly sales
-
-interface StockImport {
-  sku: string;
-  stock: number;
-}
 
 const PRODUCT_LINES = [
   { value: "total_monofocals", label: "Monofocales" },
@@ -34,9 +43,8 @@ const PRODUCT_LINES = [
 
 export default function Compras() {
   const [products, setProducts] = useState<Product[]>([]);
+  const [lots, setLots] = useState<InventoryLot[]>([]);
   const [inventory, setInventory] = useState<InventoryMap>({});
-  const [dbInventory, setDbInventory] = useState<InventoryMap>({}); // Keep original DB stock
-  const [isUsingImportedStock, setIsUsingImportedStock] = useState(false);
   const [salesData, setSalesData] = useState<SalesMap>({});
   const [loading, setLoading] = useState(true);
   const [targetMonths, setTargetMonths] = useState<number>(6); // Default 6 months coverage
@@ -57,18 +65,19 @@ export default function Compras() {
       if (productsError) throw productsError;
       setProducts(productsData || []);
 
-      // 2. Fetch current inventory stock
+      // 2. Fetch current inventory lots
       const { data: lotsData, error: lotsError } = await supabase
         .from("inventory_lots")
-        .select("product_id, quantity");
+        .select("id, product_id, lot_number, quantity, expiry_date, cost_unit_pyg")
+        .gt("quantity", 0);
         
       if (lotsError) throw lotsError;
+      setLots(lotsData || []);
       
       const stockMap: InventoryMap = {};
       lotsData?.forEach(lot => {
         stockMap[lot.product_id] = (stockMap[lot.product_id] || 0) + lot.quantity;
       });
-      setDbInventory(stockMap);
       setInventory(stockMap);
 
       // 3. Fetch sales from the last 6 months
@@ -108,17 +117,74 @@ export default function Compras() {
     fetchData();
   }, []);
 
-  const tableData = useMemo(() => {
+  // --- Calculations for Tab 1: Valor del Estoque ---
+  const stockValueData = useMemo(() => {
+    const valueByLine: Record<string, number> = {};
+    let totalValue = 0;
+
+    const data = products.map(p => {
+      const prodLots = lots.filter(l => l.product_id === p.id);
+      const stock = inventory[p.id] || 0;
+      // Use the latest lot cost or product cost
+      const unitCost = prodLots[0]?.cost_unit_pyg || p.cost_pyg || 0;
+      const totalProdValue = stock * unitCost;
+
+      totalValue += totalProdValue;
+      valueByLine[p.product_line] = (valueByLine[p.product_line] || 0) + totalProdValue;
+
+      return {
+        ...p,
+        stock,
+        unitCost,
+        totalProdValue
+      };
+    }).filter(p => p.stock > 0);
+
+    return { data, totalValue, valueByLine };
+  }, [products, lots, inventory]);
+
+  // --- Calculations for Tab 2: Vencimientos ---
+  const expiryData = useMemo(() => {
+    const now = new Date();
+    const sixMonthsFromNow = new Date();
+    sixMonthsFromNow.setMonth(now.getMonth() + 6);
+    const threeMonthsFromNow = new Date();
+    threeMonthsFromNow.setMonth(now.getMonth() + 3);
+
+    return lots.map(lot => {
+      const product = products.find(p => p.id === lot.product_id);
+      const expiry = lot.expiry_date ? new Date(lot.expiry_date) : null;
+      
+      if (!expiry) return null;
+
+      const daysLeft = Math.ceil((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      
+      let status: 'critical' | 'warning' | 'ok' = 'ok';
+      if (expiry <= threeMonthsFromNow) status = 'critical';
+      else if (expiry <= sixMonthsFromNow) status = 'warning';
+
+      if (status === 'ok') return null; // Only show near expiry
+
+      return {
+        ...lot,
+        productName: product?.name || "Desconocido",
+        sku: product?.sku || "N/A",
+        daysLeft,
+        status
+      };
+    }).filter(Boolean).sort((a: any, b: any) => a.daysLeft - b.daysLeft);
+  }, [lots, products]);
+
+  // --- Calculations for Tab 3: Pedido de Compra ---
+  const purchasingData = useMemo(() => {
     return products.map(p => {
       const currentStock = inventory[p.id] || 0;
       const monthlyAvgSales = salesData[p.sku] || 0;
       const targetStock = Math.ceil(monthlyAvgSales * targetMonths);
       
-      // Formula: (Monthly Avg * Target Months) - Current Stock
       let suggestedQty = Math.ceil(targetStock - currentStock);
       if (suggestedQty < 0) suggestedQty = 0;
 
-      // Override with manual adjustment if present
       const finalQty = manualAdjustments[p.id] !== undefined ? manualAdjustments[p.id] : suggestedQty;
       const estimatedCost = finalQty * (p.cost_pyg || 0);
       
@@ -129,23 +195,10 @@ export default function Compras() {
         targetStock,
         suggestedQty,
         finalQty,
-        estimatedCost,
-        isAtRisk: p.is_critical && currentStock <= monthlyAvgSales // Risco se estoque atual cobre 1 mês ou menos
+        estimatedCost
       };
-    }).sort((a, b) => {
-      // Prioritize critical products at risk first, then by suggestedQty
-      if (a.isAtRisk && !b.isAtRisk) return -1;
-      if (!a.isAtRisk && b.isAtRisk) return 1;
-      return b.suggestedQty - a.suggestedQty;
-    });
+    }).sort((a, b) => b.suggestedQty - a.suggestedQty);
   }, [products, inventory, salesData, targetMonths, manualAdjustments]);
-
-  const filteredData = tableData.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) || 
-                         p.sku.toLowerCase().includes(search.toLowerCase());
-    const matchesFilter = filterLine ? p.product_line === filterLine : true;
-    return matchesSearch && matchesFilter;
-  });
 
   const handleAdjustQty = (productId: string, val: string) => {
     const num = parseInt(val);
@@ -153,8 +206,8 @@ export default function Compras() {
     setManualAdjustments(prev => ({ ...prev, [productId]: num }));
   };
 
-  const exportToExcel = () => {
-    const itemsToBuy = tableData.filter(p => p.finalQty > 0);
+  const exportPurchasingToExcel = () => {
+    const itemsToBuy = purchasingData.filter(p => p.finalQty > 0);
     if (itemsToBuy.length === 0) {
       toast({ title: "Sin sugerencias", description: "No hay items con cantidad a comprar > 0", variant: "default" });
       return;
@@ -180,275 +233,338 @@ export default function Compras() {
     XLSX.writeFile(wb, `Pedido_Alcon_${new Date().toISOString().split("T")[0]}.xlsx`);
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCostImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       try {
         const bstr = evt.target?.result;
         const wb = XLSX.read(bstr, { type: "binary" });
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
-        // Parse as array of arrays
-        const data = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
-        
-        let newStockMap: InventoryMap = {};
-        let importCount = 0;
+        const data = XLSX.utils.sheet_to_json(ws) as any[];
 
-        // Skip header row (assuming row 0 is header)
-        for (let i = 1; i < data.length; i++) {
-          const row = data[i];
-          if (!row || row.length < 2) continue;
+        toast({ title: "Procesando...", description: `Actualizando costos de ${data.length} productos.` });
+
+        for (const row of data) {
+          const sku = row.SKU || row.sku;
+          const cost = row.Costo || row.costo || row.cost_pyg;
           
-          const sku = String(row[0]).trim().toUpperCase();
-          const stock = Number(row[1]);
-          
-          if (sku && !isNaN(stock)) {
-            // Find product id for this sku
-            const product = products.find(p => p.sku === sku);
-            if (product) {
-              newStockMap[product.id] = stock;
-              importCount++;
-            }
+          if (sku && cost) {
+            await supabase
+              .from("products")
+              .update({ cost_pyg: cost })
+              .eq("sku", sku);
           }
         }
 
-        if (importCount > 0) {
-          setInventory(newStockMap);
-          setIsUsingImportedStock(true);
-          toast({ title: "Stock Importado", description: `Se actualizaron ${importCount} SKUs con éxito.`, variant: "default" });
-        } else {
-          toast({ title: "Error en Importación", description: "No se encontraron SKUs válidos en el archivo.", variant: "destructive" });
-        }
+        toast({ title: "Éxito", description: "Costos actualizados correctamente." });
+        fetchData();
       } catch (err) {
-        toast({ title: "Error", description: "No se pudo leer el archivo Excel.", variant: "destructive" });
+        toast({ title: "Error", description: "No se pudo procesar el archivo.", variant: "destructive" });
       }
     };
     reader.readAsBinaryString(file);
-    // Reset file input
-    e.target.value = '';
   };
 
-  const resetToDbStock = () => {
-    setInventory(dbInventory);
-    setIsUsingImportedStock(false);
-    toast({ title: "Stock Restaurado", description: "Utilizando el stock de la base de datos.", variant: "default" });
-  };
-
-  const downloadStockTemplate = () => {
-    const wsData = [
-      ["SKU", "STOCK_ACTUAL"],
-      ["MON-001", "150"],
-      ["ATI-001", "45"]
-    ];
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet(wsData);
-    XLSX.utils.book_append_sheet(wb, ws, "Stock");
-    XLSX.writeFile(wb, "Plantilla_Stock_Compras.xlsx");
-  };
-
-  const totalEstimatedCost = tableData.reduce((acc, curr) => acc + curr.estimatedCost, 0);
-  const totalItemsToBuy = tableData.filter(t => t.finalQty > 0).length;
-  const criticalItemsAtRisk = tableData.filter(t => t.isAtRisk).length;
+  if (loading && products.length === 0) {
+    return (
+      <div className="flex h-[60vh] items-center justify-center">
+        <Loader2 className="h-10 w-10 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-slide-in">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-        <div>
-          <h1 className="text-3xl font-display font-black text-foreground tracking-tight">Compras Inteligentes</h1>
-          <p className="text-sm text-muted-foreground mt-1">Sugerencia de pedidos y control de criticidad</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-2 bg-card border border-border p-2 rounded-xl shadow-sm">
-            <span className="text-xs font-bold text-muted-foreground ml-2">Cobertura (Meses):</span>
-            <input 
-              type="number" 
-              min="1" 
-              max="24"
-              value={targetMonths}
-              onChange={(e) => setTargetMonths(Number(e.target.value) || 1)}
-              className="w-16 h-8 text-center rounded-lg border border-border bg-background text-sm font-bold focus:ring-1 focus:ring-primary outline-none"
-            />
-          </div>
-          <button 
-            onClick={exportToExcel}
-            className="flex items-center gap-2 rounded-xl gradient-emerald px-5 py-2.5 text-sm font-bold text-secondary-foreground shadow-md transition-all hover:scale-[1.02] active:scale-95"
-          >
-            <Download className="h-4 w-4" />
-            Exportar Pedido
-          </button>
-        </div>
+      <div>
+        <h1 className="text-3xl font-display font-black text-foreground tracking-tight">Gestión Inteligente de Stock</h1>
+        <p className="text-sm text-muted-foreground mt-1">Monitoreo de valor, vencimientos y reposición estratégica</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-6 backdrop-blur-md relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-4 opacity-10"><ShoppingCart size={80} /></div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-500/70">Total Pedido Estimado</p>
-          <h2 className="text-3xl font-display font-black text-foreground mt-1">
-            ₲ {totalEstimatedCost.toLocaleString()}
-          </h2>
-          <p className="text-xs text-muted-foreground font-medium mt-2">Para {targetMonths} meses de cobertura</p>
-        </div>
+      <Tabs defaultValue="compras" className="space-y-6">
+        <TabsList className="bg-muted/50 p-1 rounded-xl h-auto flex flex-wrap gap-1">
+          <TabsTrigger value="valor" className="rounded-lg py-2.5 px-4 font-bold flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+            <DollarSign className="h-4 w-4" /> Valor del Estoque
+          </TabsTrigger>
+          <TabsTrigger value="vencimientos" className="rounded-lg py-2.5 px-4 font-bold flex items-center gap-2 data-[state=active]:bg-orange-500 data-[state=active]:text-white">
+            <Calendar className="h-4 w-4" /> Vencimientos
+          </TabsTrigger>
+          <TabsTrigger value="compras" className="rounded-lg py-2.5 px-4 font-bold flex items-center gap-2 data-[state=active]:bg-emerald-500 data-[state=active]:text-white">
+            <ShoppingCart className="h-4 w-4" /> Pedido de Compra
+          </TabsTrigger>
+        </TabsList>
 
-        <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-6 backdrop-blur-md relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-4 opacity-10"><Package size={80} /></div>
-          <div className="flex justify-between items-start">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-blue-500/70">Origen del Stock</p>
-            {isUsingImportedStock ? (
-              <span className="bg-blue-500/20 text-blue-400 text-[9px] font-bold px-2 py-0.5 rounded border border-blue-500/30">EXCEL</span>
-            ) : (
-              <span className="bg-primary/20 text-primary text-[9px] font-bold px-2 py-0.5 rounded border border-primary/30">SISTEMA</span>
-            )}
+        {/* --- TAB: VALOR DEL ESTOQUE --- */}
+        <TabsContent value="valor" className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="rounded-2xl border border-primary/20 bg-primary/5 p-6 backdrop-blur-md relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-4 opacity-10"><DollarSign size={80} /></div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-primary/70">Valor Total en Bodega</p>
+              <h2 className="text-3xl font-display font-black text-foreground mt-1">
+                ₲ {stockValueData.totalValue.toLocaleString()}
+              </h2>
+              <p className="text-xs text-muted-foreground font-medium mt-2">Basado en costos actuales</p>
+            </div>
+            
+            <div className="md:col-span-2 rounded-2xl border border-border bg-card p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-bold flex items-center gap-2"><Filter className="h-4 w-4" /> Distribución por Línea</h3>
+                <div className="flex gap-2">
+                  <label className="cursor-pointer flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-bold hover:bg-muted transition-colors">
+                    <Upload className="h-3 w-3" /> Actualizar Costos
+                    <input type="file" className="hidden" accept=".xlsx,.xls" onChange={handleCostImport} />
+                  </label>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                {PRODUCT_LINES.map(line => (
+                  <div key={line.value} className="p-3 rounded-xl bg-muted/30 border border-border/50">
+                    <p className="text-[9px] font-bold text-muted-foreground uppercase">{line.label}</p>
+                    <p className="text-xs font-black mt-1">₲ {(stockValueData.valueByLine[line.value] || 0).toLocaleString()}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
-          <h2 className="text-lg font-display font-black text-foreground mt-2 leading-tight">
-            {isUsingImportedStock ? "Stock Importado" : "Stock Interno DB"}
-          </h2>
-          <div className="flex gap-2 mt-3">
-            <input 
-              type="file" 
-              accept=".xlsx,.xls" 
-              id="stockUpload" 
-              className="hidden" 
-              onChange={handleFileUpload} 
-            />
-            <label 
-              htmlFor="stockUpload" 
-              className="flex-1 text-center py-1.5 rounded-lg border border-blue-500/30 bg-blue-500/10 text-blue-400 text-[10px] font-bold cursor-pointer hover:bg-blue-500/20 transition-all"
-            >
-              Cargar Excel
-            </label>
-            {isUsingImportedStock && (
-              <button 
-                onClick={resetToDbStock}
-                className="flex-1 py-1.5 rounded-lg border border-border bg-card text-muted-foreground text-[10px] font-bold hover:bg-muted transition-all"
-              >
-                Reset DB
-              </button>
-            )}
-          </div>
-          <button onClick={downloadStockTemplate} className="w-full text-center text-[9px] text-blue-500/60 hover:text-blue-400 hover:underline mt-2">Descargar Plantilla</button>
-        </div>
 
-        <div className={cn("rounded-2xl border p-6 backdrop-blur-md relative overflow-hidden transition-colors", criticalItemsAtRisk > 0 ? "border-destructive/30 bg-destructive/10" : "border-muted bg-muted/5")}>
-          <div className="absolute top-0 right-0 p-4 opacity-10"><AlertTriangle size={80} /></div>
-          <p className={cn("text-[10px] font-bold uppercase tracking-widest", criticalItemsAtRisk > 0 ? "text-destructive" : "text-muted-foreground")}>SKUs Críticos en Riesgo</p>
-          <h2 className={cn("text-3xl font-display font-black mt-1", criticalItemsAtRisk > 0 ? "text-destructive animate-pulse" : "text-foreground")}>
-            {criticalItemsAtRisk}
-          </h2>
-          <p className="text-xs text-muted-foreground font-medium mt-2">Cobertura menor a 1 mes</p>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-4">
-        <div className="relative max-w-sm flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Buscar por SKU o producto..."
-            className="w-full rounded-xl border border-border bg-card py-2.5 pl-10 pr-4 text-sm text-foreground focus:ring-1 focus:ring-primary outline-none shadow-sm"
-          />
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => setFilterLine(null)}
-            className={cn(
-              "px-3 py-1.5 rounded-lg text-xs font-bold transition-all border",
-              !filterLine ? "bg-primary text-primary-foreground border-primary shadow-md" : "bg-card text-muted-foreground border-border hover:bg-muted"
-            )}
-          >
-            Todos
-          </button>
-          {PRODUCT_LINES.map(line => (
-            <button
-              key={line.value}
-              onClick={() => setFilterLine(line.value)}
-              className={cn(
-                "px-3 py-1.5 rounded-lg text-xs font-bold transition-all border",
-                filterLine === line.value ? "bg-primary text-primary-foreground border-primary shadow-md" : "bg-card text-muted-foreground border-border hover:bg-muted"
-              )}
-            >
-              {line.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/30">
-              <tr className="border-b border-border text-left">
-                <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-[10px] tracking-wider">SKU / Producto</th>
-                <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-[10px] tracking-wider text-right">Venta Prom. (Mes)</th>
-                <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-[10px] tracking-wider text-right">Estoque Atual</th>
-                <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-[10px] tracking-wider text-right">Target ({targetMonths}m)</th>
-                <th className="px-4 py-3 font-bold text-primary uppercase text-[10px] tracking-wider text-center">Sugerido Compra</th>
-                <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-[10px] tracking-wider text-right">Costo Estimado</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/50">
-              {loading ? (
-                <tr><td colSpan={6} className="py-20 text-center"><Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" /></td></tr>
-              ) : filteredData.length === 0 ? (
-                <tr><td colSpan={6} className="py-20 text-center text-muted-foreground italic">No se encontraron productos</td></tr>
-              ) : (
-                filteredData.map((p) => (
-                  <tr key={p.id} className={cn("hover:bg-muted/30 transition-colors group", p.isAtRisk ? "bg-destructive/5" : p.finalQty > 0 ? "bg-primary/5" : "")}>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs text-primary font-bold">{p.sku}</span>
-                        {p.is_critical && (
-                          <span className={cn("text-[9px] font-black px-1.5 rounded uppercase", p.isAtRisk ? "bg-destructive text-white animate-pulse" : "bg-orange-500/20 text-orange-600 border border-orange-500/30")}>
-                            {p.isAtRisk ? "¡PELIGRO!" : "Crítico"}
-                          </span>
-                        )}
-                      </div>
-                      <div className="font-semibold text-foreground text-xs mt-0.5">{p.name}</div>
-                    </td>
-                    <td className="px-4 py-3 text-right font-medium">
-                      {p.monthlyAvgSales.toFixed(1)}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        {p.isAtRisk && <AlertTriangle className="h-4 w-4 text-destructive animate-pulse" />}
-                        <span className={cn(
-                          "font-black px-2 py-1 rounded",
-                          p.isAtRisk ? "bg-destructive/20 text-destructive" : p.currentStock <= p.monthlyAvgSales ? "bg-rose-500/10 text-rose-500" : "text-foreground"
-                        )}>
-                          {p.currentStock}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-right font-medium text-muted-foreground">
-                      {p.targetStock}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <input 
-                        type="number"
-                        min="0"
-                        value={p.finalQty}
-                        onChange={(e) => handleAdjustQty(p.id, e.target.value)}
-                        className={cn(
-                          "w-20 h-8 text-center rounded-lg border font-bold focus:ring-2 focus:ring-primary outline-none transition-all mx-auto",
-                          p.finalQty > 0 
-                            ? "bg-primary/10 border-primary/30 text-primary" 
-                            : "bg-background border-border text-muted-foreground hover:border-primary/50"
-                        )}
-                      />
-                    </td>
-                    <td className="px-4 py-3 text-right font-black text-foreground">
-                      ₲ {p.estimatedCost.toLocaleString()}
-                    </td>
+          <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
+            <div className="p-4 border-b border-border bg-muted/20 flex justify-between items-center">
+              <div className="relative w-64">
+                <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <input 
+                  value={search} onChange={e => setSearch(e.target.value)}
+                  placeholder="Filtrar por SKU o nombre..." 
+                  className="w-full bg-background border border-border rounded-lg pl-9 pr-3 py-1.5 text-xs focus:ring-1 focus:ring-primary outline-none" 
+                />
+              </div>
+              <p className="text-[10px] font-bold text-muted-foreground">{stockValueData.data.length} SKUs con stock</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/30">
+                  <tr className="border-b border-border text-left">
+                    <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-[10px]">Producto</th>
+                    <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-[10px] text-right">Stock</th>
+                    <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-[10px] text-right">Costo Unit.</th>
+                    <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-[10px] text-right">Valor Total</th>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                </thead>
+                <tbody className="divide-y divide-border/50">
+                  {stockValueData.data
+                    .filter(p => p.name.toLowerCase().includes(search.toLowerCase()) || p.sku.toLowerCase().includes(search.toLowerCase()))
+                    .map(p => (
+                    <tr key={p.id} className="hover:bg-muted/30 transition-colors">
+                      <td className="px-4 py-3">
+                        <div className="font-mono text-[10px] text-primary font-bold">{p.sku}</div>
+                        <div className="font-semibold text-xs">{p.name}</div>
+                      </td>
+                      <td className="px-4 py-3 text-right font-bold">{p.stock}</td>
+                      <td className="px-4 py-3 text-right text-muted-foreground">₲ {p.unitCost.toLocaleString()}</td>
+                      <td className="px-4 py-3 text-right font-black text-foreground">₲ {p.totalProdValue.toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </TabsContent>
+
+        {/* --- TAB: VENCIMIENTOS --- */}
+        <TabsContent value="vencimientos" className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-6 backdrop-blur-md relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-4 opacity-10"><AlertTriangle size={80} /></div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-rose-500/70">Riesgo Crítico (&lt; 3 meses)</p>
+              <h2 className="text-3xl font-display font-black text-foreground mt-1">
+                {expiryData.filter((i: any) => i.status === 'critical').length} <span className="text-lg font-medium text-muted-foreground">lotes</span>
+              </h2>
+              <p className="text-xs text-muted-foreground font-medium mt-2">Requieren acción inmediata (Venta/Promoción)</p>
+            </div>
+            <div className="rounded-2xl border border-orange-500/20 bg-orange-500/5 p-6 backdrop-blur-md relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-4 opacity-10"><Calendar size={80} /></div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-orange-500/70">Alerta (&lt; 6 meses)</p>
+              <h2 className="text-3xl font-display font-black text-foreground mt-1">
+                {expiryData.filter((i: any) => i.status === 'warning').length} <span className="text-lg font-medium text-muted-foreground">lotes</span>
+              </h2>
+              <p className="text-xs text-muted-foreground font-medium mt-2">Monitoreo preventivo de vencimiento</p>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/30">
+                  <tr className="border-b border-border text-left">
+                    <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-[10px]">Producto / Lote</th>
+                    <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-[10px] text-right">Vencimiento</th>
+                    <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-[10px] text-center">Días Restantes</th>
+                    <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-[10px] text-right">Cantidad</th>
+                    <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-[10px] text-center">Estado</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/50">
+                  {expiryData.length === 0 ? (
+                    <tr><td colSpan={5} className="py-20 text-center text-muted-foreground italic font-medium">No hay lotes con vencimiento próximo en los siguientes 6 meses.</td></tr>
+                  ) : (
+                    expiryData.map((lot: any) => (
+                      <tr key={lot.id} className={cn("hover:bg-muted/30 transition-colors", lot.status === 'critical' ? "bg-rose-500/5" : "bg-orange-500/5")}>
+                        <td className="px-4 py-3">
+                          <div className="font-semibold text-xs">{lot.productName}</div>
+                          <div className="flex gap-2 mt-1">
+                            <span className="font-mono text-[9px] bg-muted px-1.5 rounded border border-border text-muted-foreground">Lote: {lot.lot_number}</span>
+                            <span className="font-mono text-[9px] bg-primary/10 px-1.5 rounded text-primary font-bold">{lot.sku}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-right font-medium">
+                          {new Date(lot.expiry_date).toLocaleDateString()}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={cn(
+                            "px-2 py-1 rounded text-[10px] font-black",
+                            lot.status === 'critical' ? "bg-rose-500 text-white animate-pulse" : "bg-orange-500 text-white"
+                          )}>
+                            {lot.daysLeft} días
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right font-black">{lot.quantity}</td>
+                        <td className="px-4 py-3 text-center">
+                          {lot.status === 'critical' ? (
+                            <span className="flex items-center justify-center gap-1 text-[10px] font-black text-rose-500 uppercase"><AlertCircle className="h-3 w-3" /> Crítico</span>
+                          ) : (
+                            <span className="flex items-center justify-center gap-1 text-[10px] font-black text-orange-500 uppercase"><AlertTriangle className="h-3 w-3" /> Alerta</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </TabsContent>
+
+        {/* --- TAB: PEDIDO DE COMPRA --- */}
+        <TabsContent value="compras" className="space-y-6">
+          <div className="flex items-center justify-between bg-card border border-border p-4 rounded-2xl shadow-sm">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 bg-muted/50 p-2 rounded-xl">
+                <span className="text-xs font-bold text-muted-foreground ml-2">Cobertura Objetivo:</span>
+                <input 
+                  type="number" 
+                  min="1" 
+                  max="24"
+                  value={targetMonths}
+                  onChange={(e) => setTargetMonths(Number(e.target.value) || 1)}
+                  className="w-16 h-8 text-center rounded-lg border border-border bg-background text-sm font-bold focus:ring-1 focus:ring-primary outline-none"
+                />
+                <span className="text-xs font-bold text-muted-foreground mr-2">meses</span>
+              </div>
+            </div>
+            <button 
+              onClick={exportPurchasingToExcel}
+              className="flex items-center gap-2 rounded-xl gradient-emerald px-5 py-2.5 text-sm font-bold text-secondary-foreground shadow-md transition-all hover:scale-[1.02] active:scale-95"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              Exportar Pedido para Alcon
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-6 backdrop-blur-md relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-4 opacity-10"><ShoppingCart size={80} /></div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-500/70">Total Pedido Sugerido</p>
+              <h2 className="text-3xl font-display font-black text-foreground mt-1">
+                ₲ {purchasingData.reduce((acc, curr) => acc + curr.estimatedCost, 0).toLocaleString()}
+              </h2>
+              <p className="text-xs text-muted-foreground font-medium mt-2">Para cubrir {targetMonths} meses de venta</p>
+            </div>
+
+            <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-6 backdrop-blur-md relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-4 opacity-10"><TrendingUp size={80} /></div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-amber-500/70">SKUs bajo el Mínimo</p>
+              <h2 className="text-3xl font-display font-black text-foreground mt-1">
+                {purchasingData.filter(t => t.finalQty > 0).length} <span className="text-lg font-medium text-muted-foreground">ítems</span>
+              </h2>
+              <p className="text-xs text-muted-foreground font-medium mt-2">Productos que requieren reposición</p>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
+            <div className="p-4 border-b border-border flex justify-between items-center">
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setFilterLine(null)}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border",
+                    !filterLine ? "bg-primary text-primary-foreground border-primary" : "bg-muted text-muted-foreground border-border hover:bg-muted"
+                  )}
+                >TODOS</button>
+                {PRODUCT_LINES.slice(0, 4).map(line => (
+                  <button
+                    key={line.value}
+                    onClick={() => setFilterLine(line.value)}
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border",
+                      filterLine === line.value ? "bg-primary text-primary-foreground border-primary" : "bg-muted text-muted-foreground border-border hover:bg-muted"
+                    )}
+                  >{line.label.toUpperCase()}</button>
+                ))}
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/30">
+                  <tr className="border-b border-border text-left">
+                    <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-[10px]">Producto</th>
+                    <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-[10px] text-right">Venta Prom.</th>
+                    <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-[10px] text-right">Estoque</th>
+                    <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-[10px] text-right">Target</th>
+                    <th className="px-4 py-3 font-bold text-primary uppercase text-[10px] text-center">Pedido</th>
+                    <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-[10px] text-right">Costo Estim.</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/50">
+                  {purchasingData
+                    .filter(p => (!filterLine || p.product_line === filterLine))
+                    .map((p) => (
+                    <tr key={p.id} className={cn("hover:bg-muted/30 transition-colors group", p.finalQty > 0 ? "bg-emerald-500/[0.03]" : "")}>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-[10px] text-primary font-bold">{p.sku}</span>
+                          {p.is_critical && <span className="text-[8px] font-black bg-orange-500 text-white px-1 rounded shadow-sm">CRÍTICO</span>}
+                        </div>
+                        <div className="font-semibold text-xs mt-0.5">{p.name}</div>
+                      </td>
+                      <td className="px-4 py-3 text-right font-medium">{p.monthlyAvgSales.toFixed(1)}</td>
+                      <td className="px-4 py-3 text-right">
+                        <span className={cn(
+                          "font-black px-2 py-0.5 rounded",
+                          p.currentStock <= p.monthlyAvgSales ? "bg-rose-500/10 text-rose-500" : "text-foreground"
+                        )}>{p.currentStock}</span>
+                      </td>
+                      <td className="px-4 py-3 text-right font-medium text-muted-foreground">{p.targetStock}</td>
+                      <td className="px-4 py-3 text-center">
+                        <input 
+                          type="number" min="0" value={p.finalQty}
+                          onChange={(e) => handleAdjustQty(p.id, e.target.value)}
+                          className={cn(
+                            "w-16 h-7 text-center rounded-lg border font-bold text-xs focus:ring-2 focus:ring-primary outline-none transition-all",
+                            p.finalQty > 0 ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600" : "bg-background border-border"
+                          )}
+                        />
+                      </td>
+                      <td className="px-4 py-3 text-right font-black">₲ {p.estimatedCost.toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
