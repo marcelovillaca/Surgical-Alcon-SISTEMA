@@ -276,24 +276,30 @@ export default function Compras() {
     
     sku = sku.toUpperCase().trim();
 
-    if (sku.startsWith("AU00T0V")) {
-      const dVal = parseInt(sku.substring(7));
-      if (!isNaN(dVal)) dioptria = (dVal / 10).toFixed(1);
-    } else if (sku.startsWith("SN60WF.")) {
-      const dVal = parseInt(sku.substring(7));
-      if (!isNaN(dVal)) dioptria = (dVal / 10).toFixed(1);
-    } else if (sku.startsWith("TFNT")) {
-      // TFNT[T][X].[DDD]
-      const toricityDigit = sku.charAt(4);
-      if (toricityDigit !== "0" && !isNaN(parseInt(toricityDigit))) {
-        toricidad = "T" + toricityDigit;
+    // 1. Extract Toricity: Look for 'T' followed by 1-9 (e.g., T2, T3, T4...)
+    const toricMatch = sku.match(/T([1-9])/);
+    if (toricMatch) {
+      toricidad = "T" + toricMatch[1];
+    }
+
+    // 2. Extract Diopter
+    // Strategy A: If there's a dot, the next 3 digits are usually the diopter (e.g., SN60WF.100, TFNT20.195)
+    if (sku.includes(".")) {
+      const afterDot = sku.split(".")[1].replace(/[^0-9]/g, "").substring(0, 3);
+      if (afterDot.length >= 2) {
+        const dVal = parseInt(afterDot);
+        if (!isNaN(dVal)) dioptria = (dVal / 10).toFixed(1);
       }
-      const parts = sku.split(".");
-      if (parts.length > 1) {
-        const dVal = parseInt(parts[1]);
+    } 
+    // Strategy B: If no dot, check the last 3 characters (e.g., AU00T0V220, SA60AT215)
+    else {
+      const last3 = sku.slice(-3);
+      if (/^\d{3}$/.test(last3)) {
+        const dVal = parseInt(last3);
         if (!isNaN(dVal)) dioptria = (dVal / 10).toFixed(1);
       }
     }
+
     return { dioptria, toricidad };
   };
 
