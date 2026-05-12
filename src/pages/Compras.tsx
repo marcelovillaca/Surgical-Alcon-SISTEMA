@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { 
   Package, Search, ShoppingCart, Loader2, TrendingUp, 
   AlertTriangle, Download, Calendar, DollarSign,
-  Filter, CheckCircle2, AlertCircle, FileSpreadsheet, Upload
+  Filter, CheckCircle2, AlertCircle, FileSpreadsheet, Upload, X, Trash2, Save
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
@@ -52,6 +52,9 @@ export default function Compras() {
   const [filterLine, setFilterLine] = useState<string | null>(null);
   const [manualAdjustments, setManualAdjustments] = useState<Record<string, number>>({});
   const [isUsingImportedStock, setIsUsingImportedStock] = useState(false);
+  const [pendingProducts, setPendingProducts] = useState<any[]>([]); // SKUs found in Excel but not in DB
+  const [showPendingModal, setShowPendingModal] = useState(false);
+  const [tempInventory, setTempInventory] = useState<InventoryMap | null>(null);
   const { toast } = useToast();
 
   const fetchData = async () => {
@@ -315,13 +318,12 @@ export default function Compras() {
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
         const data = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
-
         let newStockMap: InventoryMap = {};
         let importCount = 0;
-        let newProductsCount = 0;
+        let surpriseSKUs: any[] = [];
         const currentProducts = [...products];
 
-        // Identify header row (format DEP 33 has title at top)
+        // Identify header row
         let headerRowIndex = 0;
         for (let i = 0; i < Math.min(15, data.length); i++) {
           if (data[i] && String(data[i][1] || "").toUpperCase().includes("PRODUCTO")) {
@@ -330,75 +332,105 @@ export default function Compras() {
           }
         }
 
-        // Process rows after header
+        // Process rows
         for (let i = headerRowIndex + 1; i < data.length; i++) {
           const row = data[i];
           if (!row || row.length < 5) continue;
 
-          // Format: [1]=PRODUCTO (First word is SKU), [4]=STOCK ACTUAL
           const rawProducto = String(row[1] || "").trim();
           if (!rawProducto || rawProducto.toUpperCase().includes("ALCON")) continue;
 
           const sku = rawProducto.split(" ")[0].toUpperCase();
           const name = rawProducto.split(" ").slice(1).join(" ") || sku;
-          const stock = Number(row[4]); // Stock Actual
+          const stock = Number(row[4]);
 
           if (sku && !isNaN(stock)) {
             let product = currentProducts.find(p => p.sku === sku);
             
             if (!product) {
-              const { dioptria, toricidad } = parseAlconSku(sku);
-              // Auto-create product if not exists
-              const { data: newProd, error } = await supabase
-                .from("products")
-                .insert([{
-                  sku: sku,
-                  name: name,
+              // Check if already in surpriseSKUs
+              let surprise = surpriseSKUs.find(s => s.sku === sku);
+              if (!surprise) {
+                const { dioptria, toricidad } = parseAlconSku(sku);
+                surpriseSKUs.push({
+                  sku,
+                  name,
                   product_line: sku.startsWith("AU00") || sku.startsWith("SN") ? "total_monofocals" : (sku.startsWith("TF") ? "atiols" : "rest_of_portfolio"),
                   dioptria: dioptria || null,
                   toricidad: toricidad || null,
-                  active: true
-                }])
-                .select()
-                .single();
-              
-              if (!error && newProd) {
-                product = newProd as any;
-                currentProducts.push(product!);
-                newProductsCount++;
+                  stock
+                });
+              } else {
+                surprise.stock += stock;
               }
-            }
-
-            if (product) {
+            } else {
               newStockMap[product.id] = (newStockMap[product.id] || 0) + stock;
               importCount++;
             }
           }
         }
 
-        // Zero stock for missing products
-        currentProducts.forEach(p => {
-          if (newStockMap[p.id] === undefined) {
-            newStockMap[p.id] = 0;
-          }
-        });
-
-        setInventory(newStockMap);
-        setIsUsingImportedStock(true);
-        if (newProductsCount > 0) fetchData();
-        
-        toast({ 
-          title: "Sincronización DEP 33 Completada", 
-          description: `Se procesaron ${importCount} registros. ${newProductsCount} productos nuevos creados.`,
-          variant: "default"
-        });
-
+        if (surpriseSKUs.length > 0) {
+          setPendingProducts(surpriseSKUs);
+          setTempInventory(newStockMap);
+          setShowPendingModal(true);
+        } else {
+          // Zero stock for missing products
+          currentProducts.forEach(p => {
+            if (newStockMap[p.id] === undefined) {
+              newStockMap[p.id] = 0;
+            }
+          });
+          setInventory(newStockMap);
+          setIsUsingImportedStock(true);
+          toast({ title: "Sincronización Exitosa", description: `Se procesaron ${importCount} registros.`, variant: "default" });
+        }
       } catch (err) {
-        toast({ title: "Error", description: "No se pudo procesar el archivo Alcon.", variant: "destructive" });
+        toast({ title: "Error", description: "No se pudo procesar el arquivo.", variant: "destructive" });
       }
     };
     reader.readAsBinaryString(file);
   };
+
+  const handleApproveSurprise = async () => {
+    setLoading(true);
+    try {
+      let finalStockMap = { ...tempInventory };
+      let createdCount = 0;
+
+      for (const p of pendingProducts) {
+        const { data: newProd, error } = await supabase
+          .from("products")
+          .insert([{
+            sku: p.sku,
+            name: p.name,
+            product_line: p.product_line,
+            dioptria: p.dioptria,
+            toricidad: p.toricidad,
+            active: true
+          }])
+          .select()
+          .single();
+        
+        if (!error && newProd) {
+          finalStockMap[newProd.id] = p.stock;
+          createdCount++;
+        }
+      }
+
+      // Refresh products and finalize inventory
+      await fetchData();
+      setInventory(finalStockMap as InventoryMap);
+      setIsUsingImportedStock(true);
+      setShowPendingModal(false);
+      setPendingProducts([]);
+      toast({ title: "Importación Finalizada", description: `Se crearon ${createdCount} productos y se actualizó el estoque.` });
+    } catch (error) {
+      toast({ title: "Error", description: "No se puderam criar los productos.", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  }; };
 
   if (loading && products.length === 0) {
     return (
@@ -721,6 +753,101 @@ export default function Compras() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* --- MODAL DE APROBACIÓN DE SKUS SURPRESA --- */}
+      {showPendingModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-4xl rounded-2xl border border-border bg-card shadow-2xl animate-scale-in flex flex-col max-h-[90vh]">
+            <div className="p-6 border-b border-border flex items-center justify-between bg-primary/5">
+              <div>
+                <h2 className="text-xl font-bold flex items-center gap-2">
+                  <AlertCircle className="h-6 w-6 text-primary" />
+                  Nuevos Productos Detectados
+                </h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Se encontraron {pendingProducts.length} SKUs en el Excel que não estão no sistema. Revise e confirme sua inclusão.
+                </p>
+              </div>
+              <button onClick={() => setShowPendingModal(false)} className="rounded-full p-2 hover:bg-muted transition-colors">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="space-y-4">
+                {pendingProducts.map((p, idx) => (
+                  <div key={p.sku} className="p-4 rounded-xl border border-border bg-muted/20 grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                    <div className="md:col-span-1">
+                      <label className="text-[10px] font-bold text-muted-foreground uppercase">SKU / Código</label>
+                      <div className="font-mono text-sm font-black text-primary mt-1">{p.sku}</div>
+                    </div>
+                    <div className="md:col-span-1">
+                      <label className="text-[10px] font-bold text-muted-foreground uppercase">Nombre del Producto</label>
+                      <input 
+                        value={p.name}
+                        onChange={(e) => {
+                          const updated = [...pendingProducts];
+                          updated[idx].name = e.target.value;
+                          setPendingProducts(updated);
+                        }}
+                        className="w-full h-9 px-3 rounded-lg border border-border bg-background text-sm focus:ring-1 focus:ring-primary outline-none mt-1"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-muted-foreground uppercase">Línea</label>
+                      <select 
+                        value={p.product_line}
+                        onChange={(e) => {
+                          const updated = [...pendingProducts];
+                          updated[idx].product_line = e.target.value;
+                          setPendingProducts(updated);
+                        }}
+                        className="w-full h-9 px-3 rounded-lg border border-border bg-background text-sm focus:ring-1 focus:ring-primary outline-none mt-1"
+                      >
+                        {PRODUCT_LINES.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
+                      </select>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1">
+                        <label className="text-[10px] font-bold text-muted-foreground uppercase">Stock Inicial</label>
+                        <div className="font-black text-lg text-foreground">{p.stock}</div>
+                      </div>
+                      <button 
+                        onClick={() => {
+                          const updated = pendingProducts.filter((_, i) => i !== idx);
+                          setPendingProducts(updated);
+                          if (updated.length === 0) setShowPendingModal(false);
+                        }}
+                        className="p-2 text-rose-500 hover:bg-rose-500/10 rounded-lg transition-colors"
+                        title="Descartar"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-border flex justify-end gap-3 bg-muted/10">
+              <button 
+                onClick={() => setShowPendingModal(false)}
+                className="px-6 py-2.5 text-sm font-bold text-muted-foreground hover:bg-muted rounded-xl transition-all"
+              >
+                Cancelar Carga
+              </button>
+              <button 
+                onClick={handleApproveSurprise}
+                disabled={loading}
+                className="flex items-center gap-2 rounded-xl gradient-emerald px-8 py-2.5 text-sm font-bold text-secondary-foreground shadow-lg hover:scale-[1.02] active:scale-95 disabled:opacity-50"
+              >
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Confirmar e Incorporar Productos
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
