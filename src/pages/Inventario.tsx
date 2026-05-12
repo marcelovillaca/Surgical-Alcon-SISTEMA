@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useUserRole } from "@/hooks/useUserRole";
 import * as XLSX from "xlsx";
-import { RefreshCw, FileUp, FileCheck, History, AlertCircle } from "lucide-react";
+import { RefreshCw, FileUp, FileCheck, History, AlertCircle, Upload, Download } from "lucide-react";
 
 type Product = {
   id: string;
@@ -124,6 +124,78 @@ export default function Inventario() {
       fetchLots(selectedProduct.id);
     }
   }, [selectedProduct]);
+
+  const parseAlconSku = (sku: string) => {
+    let dioptria = "";
+    let toricidad = "";
+    sku = sku.toUpperCase().trim();
+    const toricMatch = sku.match(/T([1-9])/);
+    if (toricMatch) toricidad = "T" + toricMatch[1];
+    if (sku.includes(".")) {
+      const afterDot = sku.split(".")[1].replace(/[^0-9]/g, "").substring(0, 3);
+      if (afterDot.length >= 2) {
+        const dVal = parseInt(afterDot);
+        if (!isNaN(dVal)) dioptria = (dVal / 10).toFixed(1);
+      }
+    } else {
+      const last3 = sku.slice(-3);
+      if (/^\d{3}$/.test(last3)) {
+        const dVal = parseInt(last3);
+        if (!isNaN(dVal)) dioptria = (dVal / 10).toFixed(1);
+      }
+    }
+    return { dioptria, toricidad };
+  };
+
+  const handleCatalogImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: "binary" });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json(ws) as any[];
+
+        setLoading(true);
+        toast({ title: "Importando catálogo...", description: `Procesando ${data.length} productos.` });
+
+        for (const row of data) {
+          const sku = String(row.SKU || row.sku || "").trim().toUpperCase();
+          const name = row.NOMBRE || row.nombre || row.name || sku;
+          const line = row.LINEA || row.linea || row.product_line || "rest_of_portfolio";
+          
+          if (sku) {
+            const { dioptria, toricidad } = parseAlconSku(sku);
+            await supabase
+              .from("products")
+              .upsert({
+                sku,
+                name,
+                description: row.DESCRIPCION || row.descripcion || "",
+                product_line: line,
+                cost_pyg: Number(row.COSTO || row.cost_pyg || 0),
+                price_base_pyg: Number(row.PRECIO || row.price_base_pyg || 0),
+                dioptria: dioptria || null,
+                toricidad: toricidad || null,
+                active: true
+              }, { onConflict: 'sku' });
+          }
+        }
+
+        toast({ title: "Carga Completa", description: "El catálogo ha sido actualizado con éxito." });
+        fetchProducts();
+      } catch (err) {
+        toast({ title: "Error", description: "No se pudo procesar el archivo.", variant: "destructive" });
+      } finally {
+        setLoading(false);
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
 
   const resetForm = () => {
     setSku("");
@@ -255,6 +327,11 @@ export default function Inventario() {
         </div>
         {isGerente && (
           <div className="flex gap-2">
+            <label className="cursor-pointer flex items-center gap-2 rounded-lg border border-primary bg-primary/10 px-4 py-2.5 text-sm font-semibold text-primary hover:bg-primary/20 transition-all">
+              <Upload className="h-4 w-4" />
+              Importar Catálogo
+              <input type="file" className="hidden" accept=".xlsx,.xls" onChange={handleCatalogImport} />
+            </label>
             <button 
               onClick={() => setShowSync(true)}
               className="flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 text-sm font-semibold text-foreground hover:bg-muted transition-all"
