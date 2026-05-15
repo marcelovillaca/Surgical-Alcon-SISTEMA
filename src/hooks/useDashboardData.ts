@@ -168,6 +168,9 @@ export function useDashboardData(filters: DashboardFilters, includePublic = fals
     // Top 5 products by gross margin %
     const prodMarginMap = new Map<string, { ventas: number; costo: number; units: number }>();
     sales.forEach(s => {
+      // Ignore returns (negative values) for margin analysis to avoid distorting price adjustment opportunities
+      if (Number(s.monto_usd) <= 0) return; 
+
       const key = (s.producto || '').trim();
       if (!key) return;
       const cur = prodMarginMap.get(key) || { ventas: 0, costo: 0, units: 0 };

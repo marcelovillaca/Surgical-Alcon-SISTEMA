@@ -334,11 +334,14 @@ export default function Intelligence() {
     const grouped: Record<string, { name: string, sku: string, revenue: number, cogs: number }> = {};
     
     filteredRows.forEach(s => {
+      const rev = Number(s.monto_usd || 0);
+      // Ignore returns for product ranking analysis
+      if (rev <= 0) return;
+
       const key = s.codigo_producto || s.producto;
       if (!grouped[key]) {
         grouped[key] = { name: s.producto || "S/N", sku: s.codigo_producto || "S/K", revenue: 0, cogs: 0 };
       }
-      const rev = Number(s.monto_usd || 0);
       const qty = Number(s.total || 0);
       const cost = qty === 0 ? 0 : Number(s.costo || 0) * qty;
       
