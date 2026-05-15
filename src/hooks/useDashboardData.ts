@@ -168,8 +168,11 @@ export function useDashboardData(filters: DashboardFilters, includePublic = fals
     // Top 5 products by gross margin %
     const prodMarginMap = new Map<string, { ventas: number; costo: number; units: number }>();
     sales.forEach(s => {
-      // Ignore returns (negative values) for margin analysis to avoid distorting price adjustment opportunities
-      if (Number(s.monto_usd) <= 0) return; 
+      // Ignore returns and Autofacturas (La Policlínica) for margin analysis
+      const isReturn = Number(s.monto_usd) <= 0;
+      const isAutofactura = (s.cliente || '').toUpperCase().includes('POLICLINICA');
+      
+      if (isReturn || isAutofactura) return; 
 
       const key = (s.producto || '').trim();
       if (!key) return;

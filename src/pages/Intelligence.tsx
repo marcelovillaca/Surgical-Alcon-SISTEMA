@@ -335,8 +335,10 @@ export default function Intelligence() {
     
     filteredRows.forEach(s => {
       const rev = Number(s.monto_usd || 0);
-      // Ignore returns for product ranking analysis
-      if (rev <= 0) return;
+      const isAutofactura = (s.cliente || '').toUpperCase().includes('POLICLINICA');
+      
+      // Ignore returns and Autofacturas for product ranking analysis
+      if (rev <= 0 || isAutofactura) return;
 
       const key = s.codigo_producto || s.producto;
       if (!grouped[key]) {
