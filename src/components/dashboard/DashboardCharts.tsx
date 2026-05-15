@@ -92,29 +92,26 @@ export function ProductMixChart({ data }: { data: ProductMixData[] }) {
 // Keep for TS compatibility but no longer rendered
 export function MarginTrendChart({ data: _data }: { data: MarginTrendData[] }) { return null; }
 
-export function TopProductMarginList({ data }: { data: TopProductMarginData[] }) {
+export function ProductMarginList({ data, title, variant = "default" }: { data: TopProductMarginData[]; title: string; variant?: "default" | "danger" }) {
   if (!data || data.length === 0) return (
     <div className="rounded-xl border border-border bg-card p-5 flex items-center justify-center h-[260px]">
       <p className="text-sm text-muted-foreground">Sin datos de productos</p>
     </div>
   );
-  const maxMargin = Math.max(...data.map(d => d.margin), 1);
-  const MEDAL = ['🥇', '🥈', '🥉', '4', '5'];
-  const COLORS = [
-    'hsl(var(--chart-1))',
-    'hsl(var(--chart-2))',
-    'hsl(var(--chart-3))',
-    'hsl(var(--chart-4))',
-    'hsl(var(--chart-5))',
-  ];
+  const maxMargin = Math.max(...data.map(d => Math.abs(d.margin)), 1);
+  const MEDAL = variant === "danger" ? ['🔴', '🟠', '🟡', '4', '5'] : ['🥇', '🥈', '🥉', '4', '5'];
+  const COLORS = variant === "danger" 
+    ? ['hsl(0,70%,55%)', 'hsl(20,70%,55%)', 'hsl(40,70%,55%)', 'hsl(0,0%,40%)', 'hsl(0,0%,30%)']
+    : ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
+
   return (
     <div className="rounded-xl border border-border bg-card p-5">
       <h3 className="text-sm font-display font-semibold text-foreground mb-4">
-        🏆 Top 5 Produtos — Gross Margin %
+        {title}
       </h3>
       <div className="space-y-3">
         {data.map((p, i) => {
-          const barW = maxMargin > 0 ? Math.max(4, Math.round((p.margin / maxMargin) * 100)) : 0;
+          const barW = maxMargin > 0 ? Math.max(4, Math.round((Math.abs(p.margin) / maxMargin) * 100)) : 0;
           const isNeg = p.margin < 0;
           return (
             <div key={p.name} className="space-y-1">
@@ -122,18 +119,17 @@ export function TopProductMarginList({ data }: { data: TopProductMarginData[] })
                 <span className="text-base w-6 shrink-0 text-center">{MEDAL[i]}</span>
                 <span className="flex-1 text-xs font-medium text-foreground truncate" title={p.name}>{p.name}</span>
                 <span
-                  className={`text-sm font-black tabular-nums shrink-0 ${isNeg ? 'text-rose-400' : p.margin >= 40 ? 'text-emerald-400' : 'text-amber-400'
+                  className={`text-sm font-black tabular-nums shrink-0 ${isNeg ? 'text-rose-400' : p.margin >= 40 ? 'text-emerald-400' : p.margin <= 15 ? 'text-rose-400' : 'text-amber-400'
                     }`}
                 >
-                  {isNeg ? '' : '+'}{p.margin}%
+                  {p.margin >= 0 ? '+' : ''}{p.margin}%
                 </span>
               </div>
               <div className="flex items-center gap-2 pl-8">
-                {/* Progress bar */}
                 <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
                   <div
                     className="h-full rounded-full transition-all"
-                    style={{ width: `${barW}%`, background: isNeg ? 'hsl(0,70%,55%)' : COLORS[i] }}
+                    style={{ width: `${barW}%`, background: COLORS[i] }}
                   />
                 </div>
                 <span className="text-[10px] text-muted-foreground shrink-0">{formatUSD(p.ventas)}</span>

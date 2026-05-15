@@ -188,6 +188,19 @@ export function useDashboardData(filters: DashboardFilters, includePublic = fals
       .sort((a, b) => b.margin - a.margin)
       .slice(0, 5);
 
+    // Worst 5 products by gross margin % (with min volume to avoid noise)
+    const worstProductsByMargin = Array.from(prodMarginMap.entries())
+      .filter(([, v]) => v.ventas > 500) 
+      .map(([name, v]) => ({
+        name,
+        ventas: Math.round(v.ventas),
+        costo: Math.round(v.costo),
+        margin: Math.round(((v.ventas - v.costo) / v.ventas) * 100),
+        units: v.units,
+      }))
+      .sort((a, b) => a.margin - b.margin)
+      .slice(0, 5);
+
     const uniqueNL = Array.from(new Set([...Array.from(lineNames.keys()), ...targetsRaw.filter(t => t.anio === year).map(t => normalizeLine(t.linea_de_producto))]));
     const filteredNL = allLines ? uniqueNL : uniqueNL.filter(n => normalizedFilterLines.includes(n));
     const activeMonths = monthNums || [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
@@ -226,7 +239,7 @@ export function useDashboardData(filters: DashboardFilters, includePublic = fals
 
     return {
       kpis: { totalVentas, totalCosto, totalProfit, grossMargin, uniqueProducts, uniqueClients, totalUnits },
-      monthlySales, productMix, marginTrend, topProductsByMargin,
+      monthlySales, productMix, marginTrend, topProductsByMargin, worstProductsByMargin,
       accelerometers: otherAccelerometers, equipmentData,
       overallCumplimiento, totalTarget, overallUnitsFaltantes,
       topClients: topClients.map(([name, val]) => ({ name, value: Math.round(val), pct: Math.round((val / maxClient) * 100) })),

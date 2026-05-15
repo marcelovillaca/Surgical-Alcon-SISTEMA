@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import KpiCard from "@/components/dashboard/KpiCard";
-import { SalesBarChart, ProductMixChart, TopProductMarginList } from "@/components/dashboard/DashboardCharts";
+import { SalesBarChart, ProductMixChart, ProductMarginList } from "@/components/dashboard/DashboardCharts";
 import { RankingCard } from "@/components/dashboard/TopRankings";
 import MetaAccelerator from "@/components/dashboard/MetaAccelerator";
 import DashboardFilters from "@/components/dashboard/DashboardFilters";
@@ -139,8 +139,20 @@ const Dashboard = () => {
             </div>
           )}
 
-          {/* Margin Trend - only gerente */}
-          {isGerente && <TopProductMarginList data={data.topProductsByMargin} />}
+          {/* Margin Trends - only gerente */}
+          {isGerente && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <ProductMarginList 
+                title="🏆 Top 5 Produtos — Melhores Margens" 
+                data={data.topProductsByMargin} 
+              />
+              <ProductMarginList 
+                title="📉 5 Piores Produtos — Gross Margin %" 
+                data={data.worstProductsByMargin} 
+                variant="danger"
+              />
+            </div>
+          )}
 
         </>
       )}

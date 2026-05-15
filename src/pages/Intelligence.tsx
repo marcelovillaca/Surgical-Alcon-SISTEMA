@@ -106,7 +106,7 @@ export default function Intelligence() {
     const pageSize = 1000;
     let query = supabase
       .from("sales_details")
-      .select("fecha, costo, total, monto_usd, linea_de_producto, vendedor, mercado, cliente")
+      .select("fecha, costo, total, monto_usd, linea_de_producto, vendedor, mercado, cliente, producto, codigo_producto")
       .gte("fecha", `${selectedYear - 1}-01-01`)
       .lte("fecha", `${selectedYear}-12-31`);
     
@@ -313,6 +313,54 @@ export default function Intelligence() {
     };
   }, [plData, selectedYear, selectedQuarter, selectedMonths]);
 
+  const productRankings = useMemo(() => {
+    const isCurrentYearSelected = selectedYear === (new Date().getFullYear());
+    let limitIdx = 11;
+    if (isCurrentYearSelected && selectedQuarter === "all" && selectedMonths.length === 0) {
+      const lastRevIdx = [...plData.current].reverse().findIndex(m => m.revenue > 0);
+      limitIdx = lastRevIdx === -1 ? 0 : 11 - lastRevIdx;
+    }
+
+    const filteredRows = salesData.filter(s => {
+      const d = new Date(s.fecha);
+      if (d.getFullYear() !== selectedYear) return false;
+      const monthIdx = d.getMonth();
+      if (monthIdx > limitIdx) return false;
+      
+      if (selectedMonths.includes("Todos")) return true;
+      return selectedMonths.includes(MESES[monthIdx]);
+    });
+
+    const grouped: Record<string, { name: string, sku: string, revenue: number, cogs: number }> = {};
+    
+    filteredRows.forEach(s => {
+      const key = s.codigo_producto || s.producto;
+      if (!grouped[key]) {
+        grouped[key] = { name: s.producto || "S/N", sku: s.codigo_producto || "S/K", revenue: 0, cogs: 0 };
+      }
+      const rev = Number(s.monto_usd || 0);
+      const qty = Number(s.total || 0);
+      const cost = qty === 0 ? 0 : Number(s.costo || 0) * qty;
+      
+      grouped[key].revenue += rev;
+      grouped[key].cogs += cost;
+    });
+
+    const list = Object.values(grouped).map(p => {
+      const gm = p.revenue - p.cogs;
+      const gmPct = p.revenue > 0 ? (gm / p.revenue) * 100 : 0;
+      return { ...p, gm, gmPct };
+    });
+
+    const topRevenue = [...list].sort((a, b) => b.revenue - a.revenue).slice(0, 5);
+    const bottomMargin = [...list]
+      .filter(p => p.revenue > 0.01) // Ignore noise/returns with zero revenue
+      .sort((a, b) => a.gmPct - b.gmPct)
+      .slice(0, 5);
+
+    return { topRevenue, bottomMargin };
+  }, [salesData, selectedYear, selectedQuarter, selectedMonths, plData, selectedMarket]);
+
   const toggleMonth = (m: string) => {
     if (m === "Todos") {
       setSelectedMonths(["Todos"]);
@@ -472,6 +520,59 @@ export default function Intelligence() {
           <div className="flex items-center gap-2 mt-2">
             <span className={cn("text-sm font-bold", totals.netPct >= 0 ? "text-emerald-400" : "text-destructive")}>{totals.netPct.toFixed(1)}%</span>
             <span className="text-[10px] text-muted-foreground font-medium uppercase">final YTD</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="rounded-2xl border border-border bg-card/50 p-6 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-bold flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-emerald-500" /> Top 5 Productos por Facturación
+            </h3>
+            <span className="text-[10px] font-bold text-muted-foreground uppercase">Revenue USD</span>
+          </div>
+          <div className="space-y-3">
+            {productRankings.topRevenue.map((p, i) => (
+              <div key={`${p.sku}-${i}`} className="flex items-center justify-between p-3 rounded-xl bg-muted/30 border border-border/50">
+                <div className="flex items-center gap-3">
+                  <span className="flex items-center justify-center h-6 w-6 rounded-full bg-emerald-500/10 text-emerald-600 text-[10px] font-black">{i+1}</span>
+                  <div>
+                    <p className="text-xs font-bold leading-none">{p.name}</p>
+                    <p className="text-[9px] text-muted-foreground mt-1 font-mono uppercase">{p.sku}</p>
+                  </div>
+                </div>
+                <p className="text-sm font-black">{formatUSD(p.revenue)}</p>
+              </div>
+            ))}
+            {productRankings.topRevenue.length === 0 && <p className="text-center py-4 text-xs text-muted-foreground italic">Sem dados no período</p>}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-border bg-card/50 p-6 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-bold flex items-center gap-2">
+              <TrendingDown className="h-4 w-4 text-rose-500" /> 5 Piores Margens Brutas
+            </h3>
+            <span className="text-[10px] font-bold text-muted-foreground uppercase">Margem %</span>
+          </div>
+          <div className="space-y-3">
+            {productRankings.bottomMargin.map((p, i) => (
+              <div key={`${p.sku}-${i}`} className="flex items-center justify-between p-3 rounded-xl bg-muted/30 border border-border/50">
+                <div className="flex items-center gap-3">
+                  <span className="flex items-center justify-center h-6 w-6 rounded-full bg-rose-500/10 text-rose-600 text-[10px] font-black">{i+1}</span>
+                  <div>
+                    <p className="text-xs font-bold leading-none">{p.name}</p>
+                    <p className="text-[9px] text-muted-foreground mt-1 font-mono uppercase">{p.sku}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className={cn("text-sm font-black", p.gmPct < 30 ? "text-rose-500" : "text-foreground")}>{p.gmPct.toFixed(1)}%</p>
+                  <p className="text-[9px] text-muted-foreground mt-0.5">{formatUSD(p.gm)} GM</p>
+                </div>
+              </div>
+            ))}
+            {productRankings.bottomMargin.length === 0 && <p className="text-center py-4 text-xs text-muted-foreground italic">Sem dados no período</p>}
           </div>
         </div>
       </div>
